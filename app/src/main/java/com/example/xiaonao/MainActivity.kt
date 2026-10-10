@@ -66,6 +66,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -147,12 +148,15 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     var batchImportOpen by remember { mutableStateOf(false) }
     // 小组件设置弹窗开关（配置每个桌面组件显示哪一类）
     var widgetSettingsOpen by remember { mutableStateOf(false) }
+    // 当前被滑开（露出删除按钮）的待办 id；用于「点其它地方自动收起」
+    var openItemId by remember { mutableStateOf<Long?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     fun onDelete(todo: Todo) {
         vm.delete(todo.id)
+        openItemId = null
         scope.launch {
             val res = snackbarHostState.showSnackbar(
                 message = "已删除「${todo.title}」",
@@ -290,6 +294,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                     .fillMaxSize()
                     .padding(padding)
                     .padding(16.dp)
+                    .clickable { if (openItemId != null) openItemId = null }
             ) {
                 // 搜索框
                 OutlinedTextField(
@@ -381,6 +386,24 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                 value == SwipeToDismissBoxValue.EndToStart
                             }
                         )
+
+                        // 本行滑到打开态 → 记为当前打开项；滑回原位 → 清除
+                        LaunchedEffect(dismissState.currentValue) {
+                            when (dismissState.currentValue) {
+                                SwipeToDismissBoxValue.EndToStart -> openItemId = todo.id
+                                SwipeToDismissBoxValue.Settled ->
+                                    if (openItemId == todo.id) openItemId = null
+                                else -> {}
+                            }
+                        }
+                        // 别的行打开时，把这一条（若还开着）自动收起
+                        LaunchedEffect(openItemId) {
+                            if (openItemId != null && openItemId != todo.id &&
+                                dismissState.currentValue != SwipeToDismissBoxValue.Settled
+                            ) {
+                                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+                            }
+                        }
                         SwipeToDismissBox(
                             state = dismissState,
                             backgroundContent = {
@@ -410,7 +433,10 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                         ).show()
                                     }
                                 },
-                                onEdit = { editing = todo },
+                                onEdit = {
+                                    // 有行处于打开态时，点任意行先把它收起还原；再点一次才编辑
+                                    if (openItemId != null) openItemId = null else editing = todo
+                                },
                                 onTogglePin = { vm.togglePin(todo.id) },
                                 onCopy = { copyTodo(context, todo.title) }
                             )
