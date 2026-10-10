@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="80dp"
+    android:updatePeriodMillis="0"
+    android:resizeMode="vertical|horizontal"
+    android:widgetCategory="home_screen"
+    android:previewImage="@mipmap/ic_launcher"
+    android:initialLayout="@layout/widget_list">
+
+    <!--
+        updatePeriodMillis=0 表示不靠系统定时刷新，
+        我们在数据变化时用代码主动 notifyUpdate，更及时也更省电。
+    -->
+
+</appwidget-provider>

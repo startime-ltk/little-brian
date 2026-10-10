@@ -1,0 +1,73 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.kapt'
+}
+
+// kapt 在生成 Java 桩时会遇到 Compose 编译器插件注入的 @Composable 注解，
+// 默认无法解析成 NonExistentClass 而报错。开启 correctErrorTypes 让 kapt 容错处理。
+kapt {
+    correctErrorTypes = true
+}
+
+android {
+    namespace 'com.example.xiaonao'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.example.xiaonao'
+        minSdk 21
+        targetSdk 34
+        versionCode 13
+        versionName '1.8'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        // 与 Kotlin 1.9.22 配套的 Compose 编译器版本
+        kotlinCompilerExtensionVersion '1.5.10'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.4'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.4'
+    implementation 'androidx.activity:activity-compose:1.9.2'
+
+    // Compose（界面）
+    implementation platform('androidx.compose:compose-bom:2024.08.00')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+
+    // Room（本地数据库）
+    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-ktx:2.6.1'
+    kapt 'androidx.room:room-compiler:2.6.1'
+
+    // Compose 运行时注解（kapt 生成桩时需可见 @Composable）
+    implementation 'androidx.compose.runtime:runtime:1.6.8'
+
+    // 协程
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+}

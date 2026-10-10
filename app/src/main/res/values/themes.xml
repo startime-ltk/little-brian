@@ -1,0 +1,25 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Compose 界面用的基础主题（无 ActionBar） -->
+    <style name="Theme.XiaoNao" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- 快速添加用的透明全屏主题：窗口透明，露出桌面，
+         配合 activity_quick_add.xml 让它看起来像浮在桌面上的弹窗 -->
+    <style name="Theme.XiaoNao.QuickAdd" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Activity</item>
+    </style>
+
+    <!-- 快速添加里用的分类小标签 -->
+    <style name="QuickCatChip" parent="android:Widget.TextView">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:padding">6dp</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:background">@drawable/quick_cat_bg</item>
+        <item name="android:textColor">@color/widget_subtext</item>
+    </style>
+</resources>

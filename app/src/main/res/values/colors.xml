@@ -1,0 +1,16 @@
+<resources>
+    <!-- 主色调（Material You 自动取色，这里仅作兜底） -->
+    <color name="purple_500">#6750A4</color>
+    <color name="purple_700">#4F378B</color>
+
+    <!-- 小组件用到的固定颜色（RemoteViews 不能引用主题，必须写死） -->
+    <color name="widget_text">#1C1B1F</color>
+    <color name="widget_subtext">#49454F</color>
+    <color name="widget_accent">#6750A4</color>
+
+    <!-- 待办分类颜色（供小组件 RemoteViews 写死引用） -->
+    <color name="cat_none">#9E9E9E</color>
+    <color name="cat_work">#6750A4</color>
+    <color name="cat_study">#00897B</color>
+    <color name="cat_life">#F57C00</color>
+</resources>

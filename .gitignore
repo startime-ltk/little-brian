@@ -1,0 +1,18 @@
+# Android / Gradle
+*.iml
+.gradle/
+.idea/
+/local.properties
+.DS_Store
+/build/
+*/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 编译产物与签名相关
+*.apk
+*.aab
+*.keystore
+*.log
+!gradle/wrapper/gradle-wrapper.jar
