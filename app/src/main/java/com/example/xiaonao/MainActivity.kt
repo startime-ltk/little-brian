@@ -60,6 +60,9 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -151,6 +154,8 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     var widgetSettingsOpen by remember { mutableStateOf(false) }
     // 当前被滑开（露出删除按钮）的待办 id；用于「点其它地方自动收起」
     var openItemId by remember { mutableStateOf<Long?>(null) }
+    // 底部视图切换：0=列表 1=时间轴 2=统计
+    var tab by remember { mutableStateOf(0) }
     // 应用内更新相关状态
     var updateInfo by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
     var updating by remember { mutableStateOf(false) }
@@ -326,6 +331,16 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                     .padding(16.dp)
                     .clickable { if (openItemId != null) openItemId = null }
             ) {
+                // 顶部视图切换：列表 / 时间轴 / 统计
+                TabRow(selectedTabIndex = tab) {
+                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("列表") })
+                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("时间轴") })
+                    Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("统计") })
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                if (tab == 0) {
                 // 搜索框
                 OutlinedTextField(
                     value = query,
@@ -473,6 +488,9 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                         }
                     }
                 }
+                }
+                if (tab == 1) TimelineView(todos = todos, onEdit = { editing = it })
+                if (tab == 2) StatsView(todos = todos)
             }
         }
 
@@ -627,11 +645,17 @@ fun DueDateRow(dueDate: Long?, onPick: (Long?) -> Unit) {
                 cal.get(Calendar.DAY_OF_MONTH)
             ).show()
         }) {
-            Text(if (dueDate != null) "到期：${formatDate(dueDate)}" else "设置到期")
+            Text(if (dueDate != null) "🔔 到期：${formatDate(dueDate)}" else "设置到期（到点提醒）")
         }
         if (dueDate != null) {
             Spacer(Modifier.width(8.dp))
             TextButton(onClick = { onPick(null) }) { Text("清除") }
+            Text(
+                "⏰ 到点会通过系统通知提醒你",
+                fontSize = 11.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(start = 4.dp)
+            )
         }
     }
 }
@@ -686,13 +710,14 @@ fun TodoRow(
                 }
             }
 
-            // 到期时间（次要文字）
+            // 到期时间（次要文字）；设了到期就会到点提醒，逾期未完成标红
             if (todo.dueDate != null) {
+                val overdue = todo.dueDate < System.currentTimeMillis() && !todo.done
                 Text(
-                    formatDate(todo.dueDate),
+                    (if (overdue) "⏰ " else "🔔 ") + formatDate(todo.dueDate),
                     Modifier.padding(start = 8.dp),
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = if (overdue) Color(0xFFE53935) else Color.Gray
                 )
             }
 
@@ -1002,6 +1027,177 @@ fun WidgetFilterChips(selected: String, onSelect: (String) -> Unit) {
                 onClick = { onSelect(cat.name) },
                 label = { Text(cat.label) }
             )
+        }
+    }
+}
+
+/** 把时间戳归到当天 00:00，用于「日记时间轴」按天分组 */
+fun dayStart(ts: Long): Long {
+    val c = Calendar.getInstance().apply { timeInMillis = ts }
+    c.set(Calendar.HOUR_OF_DAY, 0)
+    c.set(Calendar.MINUTE, 0)
+    c.set(Calendar.SECOND, 0)
+    c.set(Calendar.MILLISECOND, 0)
+    return c.timeInMillis
+}
+
+/**
+ * 日记时间轴：按到期日期把待办串成一条竖向时间线（最近的日期在前）。
+ * 没设到期日的待办单独归到「未排期」放最后。点击卡片可编辑。
+ */
+@Composable
+fun TimelineView(todos: List<Todo>, onEdit: (Todo) -> Unit) {
+    if (todos.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("还没有待办，去「列表」添加一条吧～", color = Color.Gray)
+        }
+        return
+    }
+    val fmtDay = SimpleDateFormat("M月d日", Locale.CHINA)
+    val fmtWeek = SimpleDateFormat("EEEE", Locale.CHINA)
+    val withDate = todos.filter { it.dueDate != null }.sortedByDescending { it.dueDate }
+    val noDate = todos.filter { it.dueDate == null }
+    val groups = withDate.groupBy { dayStart(it.dueDate!!) }
+        .toSortedMap(compareByDescending { it })
+        .map { (day, items) -> (Triple(day, fmtDay.format(day), fmtWeek.format(day)) to items) }
+        .toMutableList()
+    if (noDate.isNotEmpty()) groups.add(Triple(-1L, "未排期", "") to noDate)
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        groups.forEach { (key, items) ->
+            item {
+                Row(Modifier.fillMaxWidth()) {
+                    // 左侧：日期节点（圆点 + 文字）+ 贯穿竖线
+                    Column(
+                        Modifier.width(64.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(key.second, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        if (key.third.isNotBlank())
+                            Text(key.third, fontSize = 11.sp, color = Color.Gray)
+                        Spacer(Modifier.height(4.dp))
+                        Box(Modifier.size(12.dp).background(Color(0xFF6750A4), CircleShape))
+                        Box(Modifier.width(2.dp).weight(1f).background(Color(0xFFE0E0E0)))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    // 右侧：当天待办卡片列表
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items.forEach { TimelineCard(it, onEdit) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 时间轴里的单条待办卡片（只读展示，点击进编辑） */
+@Composable
+fun TimelineCard(todo: Todo, onEdit: (Todo) -> Unit) {
+    val cat = Category.from(todo.category)
+    Card(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onEdit(todo) }
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(10.dp).background(colorResource(cat.colorRes), CircleShape))
+            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                Text(
+                    (if (todo.pinned) "📌 " else "") + todo.title,
+                    textDecoration = if (todo.done) TextDecoration.LineThrough else TextDecoration.None,
+                    color = if (todo.done) Color.Gray else Color.Unspecified,
+                    fontWeight = if (todo.pinned) FontWeight.Bold else FontWeight.Normal
+                )
+                if (todo.note.isNotBlank())
+                    Text(todo.note, fontSize = 12.sp, color = Color.Gray, maxLines = 2)
+            }
+            val rule = RepeatRule.from(todo.repeat)
+            if (rule != RepeatRule.NONE)
+                Text("🔁${rule.label}", Modifier.padding(start = 8.dp), fontSize = 12.sp, color = Color.Gray)
+            Checkbox(checked = todo.done, onCheckedChange = { })
+        }
+    }
+}
+
+/**
+ * 完成率统计：总完成率圆环 + 关键数字（总数/已完成/待完成/逾期）+ 各分类完成情况。
+ */
+@Composable
+fun StatsView(todos: List<Todo>) {
+    val total = todos.size
+    val done = todos.count { it.done }
+    val rate = if (total == 0) 0f else done.toFloat() / total
+    val now = System.currentTimeMillis()
+    val overdue = todos.count { !it.done && it.dueDate != null && it.dueDate < now }
+    val active = todos.count { !it.done }
+
+    val byCat = Category.all.filter { it != Category.NONE }.map { cat ->
+        val items = todos.filter { Category.from(it.category) == cat }
+        Triple(cat, items.count { it.done }, items.size)
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // 总完成率圆环
+        Card(Modifier.fillMaxWidth()) {
+                        Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(110.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        progress = { rate },
+                        Modifier.size(110.dp),
+                        strokeWidth = 10.dp,
+                        color = Color(0xFF6750A4)
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("${(rate * 100).toInt()}%", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        Text("完成率", fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("共 $total 条", fontSize = 14.sp)
+                    Text("已完成 $done 条", fontSize = 14.sp, color = Color(0xFF00897B))
+                    Text("待完成 $active 条", fontSize = 14.sp, color = Color(0xFFF57C00))
+                    if (overdue > 0)
+                        Text("已逾期 $overdue 条", fontSize = 14.sp, color = Color(0xFFE53935))
+                }
+            }
+        }
+
+        Text("分类完成情况", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        byCat.forEach { (cat, d, n) ->
+            val r = if (n == 0) 0f else d.toFloat() / n
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(10.dp).background(colorResource(cat.colorRes), CircleShape))
+                Text(cat.label, Modifier.width(56.dp).padding(start = 8.dp), fontSize = 13.sp)
+                LinearProgressIndicator(
+                    progress = { r },
+                    Modifier.weight(1f),
+                    color = Color(0xFF6750A4)
+                )
+                Text("$d/$n", Modifier.padding(start = 8.dp), fontSize = 12.sp, color = Color.Gray)
+            }
         }
     }
 }
