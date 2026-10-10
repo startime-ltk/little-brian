@@ -51,6 +51,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -150,6 +151,10 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     var widgetSettingsOpen by remember { mutableStateOf(false) }
     // 当前被滑开（露出删除按钮）的待办 id；用于「点其它地方自动收起」
     var openItemId by remember { mutableStateOf<Long?>(null) }
+    // 应用内更新相关状态
+    var updateInfo by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
+    var updating by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf(0) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -167,6 +172,24 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 vm.restore(todo)
             }
         }
+    }
+
+    // 检查更新：拉 latest.json，有更高版本就弹提示；manual=true 时没更新也给个 toast
+    fun checkForUpdate(manual: Boolean) {
+        scope.launch {
+            AppUpdater.markChecked(context)
+            val info = AppUpdater.fetchLatest()
+            if (AppUpdater.hasUpdate(info)) {
+                updateInfo = info
+            } else if (manual) {
+                Toast.makeText(context, "已是最新版本", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // 启动后按节流自动查一次更新（默认每天最多一次）
+    LaunchedEffect(Unit) {
+        if (AppUpdater.shouldAutoCheck(context)) checkForUpdate(manual = false)
     }
 
     // 导出：生成 JSON 文件后用系统分享面板发出（微信/蓝牙/其他 App 都能接）
@@ -281,6 +304,13 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                                 Toast.makeText(context, "导出失败", Toast.LENGTH_SHORT).show()
                                             }
                                         }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("检查更新") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        checkForUpdate(manual = true)
                                     }
                                 )
                             }
@@ -478,6 +508,68 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 onSaved = {
                     widgetSettingsOpen = false
                     Toast.makeText(context, "小组件设置已保存", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        // 发现新版本：提示对话框
+        updateInfo?.let { info ->
+            AlertDialog(
+                onDismissRequest = { updateInfo = null },
+                confirmButton = {
+                    TextButton(onClick = {
+                        scope.launch {
+                            if (!AppUpdater.canInstallPackages(context)) {
+                                Toast.makeText(
+                                    context,
+                                    "请先在设置里开启「允许安装未知应用」",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                AppUpdater.openInstallSettings(context)
+                                return@launch
+                            }
+                            updating = true
+                            downloadProgress = 0
+                            try {
+                                val file = AppUpdater.downloadApk(context, info.apkUrl) {
+                                    downloadProgress = it
+                                }
+                                updating = false
+                                updateInfo = null
+                                AppUpdater.installApk(context, file)
+                            } catch (e: Exception) {
+                                updating = false
+                                Toast.makeText(
+                                    context,
+                                    "下载失败：${e.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    }) { Text("立即更新") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { updateInfo = null }) { Text("稍后") }
+                },
+                title = { Text("发现新版本 v${info.versionName}") },
+                text = {
+                    if (info.note.isNotBlank()) Text(info.note)
+                    else Text("有新版本可用，是否现在更新？")
+                }
+            )
+        }
+
+        // 下载中：进度对话框（不可取消，避免误关）
+        if (updating) {
+            AlertDialog(
+                onDismissRequest = { },
+                confirmButton = { },
+                title = { Text("正在下载更新…") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        LinearProgressIndicator(progress = { downloadProgress / 100f })
+                        Text("${downloadProgress}%", fontSize = 13.sp, color = Color.Gray)
+                    }
                 }
             )
         }

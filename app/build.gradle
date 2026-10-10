@@ -38,6 +38,7 @@ android {
     }
     buildFeatures {
         compose true
+        buildConfig true
     }
     composeOptions {
         // 与 Kotlin 1.9.22 配套的 Compose 编译器版本

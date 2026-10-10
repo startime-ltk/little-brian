@@ -1,0 +1,6 @@
+{
+  "versionCode": 14,
+  "versionName": "1.8",
+  "apkUrl": "https://github.com/OWNER/REPO/releases/download/v1.8/%E5%B0%8F%E8%84%91_v1.8.apk",
+  "note": "滑动删除改为确认式；滑开的行点别处自动收起还原"
+}

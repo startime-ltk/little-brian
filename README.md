@@ -154,6 +154,36 @@ cd XiaoNao
 
 ---
 
+## 应用内「点一下就能更新」（免费 GitHub 方案）
+
+不用第三方账号、零成本：App 启动时（每天最多自动查一次）或手动点「⋮ → 检查更新」，去 GitHub 仓库拉 `update/latest.json`，
+发现远端 `versionCode` 比本地大，就下载 APK 并调起系统安装器。
+
+**发布一次更新的步骤：**
+
+1. 在 `app/build.gradle` 把 `versionCode` +1、`versionName` 改成新号；
+2. 编出 APK（debug 或你固定的一把发布密钥签名），改名成 `小脑_vX.Y.apk`；
+3. 在 GitHub 上 **Draft a new release**，tag 写 `vX.Y`，把 APK 作为附件上传并发布；
+4. 把 `update/latest.json` 改好提交：
+   ```json
+   {
+     "versionCode": 15,
+     "versionName": "1.9",
+     "apkUrl": "https://github.com/<你的用户名>/<仓库名>/releases/download/v1.9/%E5%B0%8F%E8%84%91_v1.9.apk",
+     "note": "本次更新内容…"
+   }
+   ```
+5. 用户下次打开 App（或手动检查）就会看到「发现新版本」，点「立即更新」下载安装。
+
+**注意事项：**
+
+- `AppUpdater.kt` 顶部的 `UPDATE_JSON_URL` 必须改成你自己的仓库路径（`raw.githubusercontent.com/.../update/latest.json`）。
+- **签名必须一致**：升级包要和已装 App 同一把密钥，否则报「签名冲突」装不上。正式分发前固定一把发布密钥，别再用 debug 密钥长期发。
+- APK 文件名含中文，`apkUrl` 里要 URL 编码（或用 Release 附件的下载直链，从发布页「复制链接」即可）。
+- Android 8+ 首次更新会引导你去设置开启「允许安装未知应用」；Android 12+ 系统安装器一定会弹确认，无法完全静默。
+
+---
+
 ## 数据存在哪
 
 数据库文件：`/data/data/com.example.xiaonao/databases/xiaonao_db`
