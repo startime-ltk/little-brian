@@ -153,18 +153,22 @@ cd XiaoNao
 
 ## 直接装 APK（最快，不用装开发环境）
 
+开源仓库（GitHub）：[startime-ltk/little-brian](https://github.com/startime-ltk/little-brian) —— 所有版本 APK 都在 Releases 里，应用内更新也走这个仓库。
+
 已编译好的安装包（带版本号）：
 
-- **`/workspace/小脑_v1.10.apk`**（debug 签名版，包名 `com.example.xiaonao`，Android 5.0+ 可装）
-- 历史版本：`小脑_v1.9.apk`、`小脑_v1.8.apk`、`小脑_v1.7.apk`、`小脑_v1.6.apk`、`小脑_v1.5.apk`、`小脑_v1.4.1.apk`、`小脑_v1.3.3.apk`、`小脑_v1.2.apk`、`小脑_v1.1.apk`
+- **`/workspace/小脑_v1.11.apk`**（**release 正式签名版**，包名 `com.example.xiaonao`，Android 5.0+ 可装）—— 这是首个正式发布版，建议装这个
+- 历史版本：`小脑_v1.10.apk`(debug)、`小脑_v1.9.apk`、`小脑_v1.8.apk`、`小脑_v1.7.apk`、`小脑_v1.6.apk`、`小脑_v1.5.apk`、`小脑_v1.4.1.apk`、`小脑_v1.3.3.apk`、`小脑_v1.2.apk`、`小脑_v1.1.apk`
+- 最新版也可在 GitHub Releases 下载：`little-brain-v1.12.apk`（应用内更新会直接拉这个）
 
 手机安装步骤：
 
-1. 把 `小脑_v1.10.apk` 传到手机（微信文件传输 / USB 拷贝 / 网盘都行）；
-2. 手机「设置 → 安全」打开「允许未知来源应用安装」（装完可关）；
-3. 点开 apk 按提示安装；
-4. 装好后：进 App 加几条待办 → 长按桌面空白处 →「小组件」→ 找到 **小脑** 拖到桌面即可；
-5. 想让某个组件只看某一类：App 内「⋮」→「小组件设置」里指定分类。
+1. 把 `小脑_v1.11.apk` 传到手机（微信文件传输 / USB 拷贝 / 网盘都行）；
+2. **如果之前装过 v1.10 及更早的（debug 签名）版本，请先卸载**——签名已换成正式的发布密钥，旧版无法直接覆盖升级（一次性）；
+3. 手机「设置 → 安全」打开「允许未知来源应用安装」（装完可关）；
+4. 点开 apk 按提示安装；
+5. 装好后**第一次打开 App 会提示「发现新版本 v1.12」**，点「立即更新」即可一键无缝升级（这就是应用内更新的效果）；之后所有新版本都会这样提示。
+6. 进 App 加几条待办 → 长按桌面空白处 →「小组件」→ 找到 **小脑** 拖到桌面即可；想让某个组件只看某一类：App 内「⋮」→「小组件设置」里指定分类。
 
 ---
 
@@ -191,8 +195,8 @@ cd XiaoNao
 
 **注意事项：**
 
-- `AppUpdater.kt` 顶部的 `UPDATE_JSON_URL` 必须改成你自己的仓库路径（`raw.githubusercontent.com/.../update/latest.json`）。
-- **签名必须一致**：升级包要和已装 App 同一把密钥，否则报「签名冲突」装不上。正式分发前固定一把发布密钥，别再用 debug 密钥长期发。
+- `AppUpdater.kt` 顶部的 `UPDATE_JSON_URL` 已指向本仓库 `little-brian` 的 `update/latest.json`（公开仓库，免登录可拉）。
+- **签名必须一致**：已生成固定发布密钥库 `littlebrain.keystore`（不入库），`build.gradle` 的 `signingConfigs` 引用它，所有发布包都用同一把密钥，OTA 升级永不出「签名冲突」。注意 `.keystore` 与 `keystore.properties` 已 gitignore，换机器/协作时需单独备份这两份文件。
 - APK 文件名含中文，`apkUrl` 里要 URL 编码（或用 Release 附件的下载直链，从发布页「复制链接」即可）。
 - Android 8+ 首次更新会引导你去设置开启「允许安装未知应用」；Android 12+ 系统安装器一定会弹确认，无法完全静默。
 
