@@ -46,6 +46,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -62,6 +63,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
@@ -168,6 +170,8 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     var batchImportOpen by remember { mutableStateOf(false) }
     // 小组件设置弹窗开关（配置每个桌面组件显示哪一类）
     var widgetSettingsOpen by remember { mutableStateOf(false) }
+    // 关于弹窗开关
+    var aboutOpen by remember { mutableStateOf(false) }
     // 当前被滑开（露出删除按钮）的待办 id；用于「点其它地方自动收起」
     var openItemId by remember { mutableStateOf<Long?>(null) }
     // 点了滑出的「删除」按钮、等待确认的那条待办（非 null 时弹确认框）
@@ -345,6 +349,13 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                     onClick = {
                                         menuExpanded = false
                                         checkForUpdate(manual = true)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("关于") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        aboutOpen = true
                                     }
                                 )
                             }
@@ -619,6 +630,17 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 onSaved = {
                     widgetSettingsOpen = false
                     Toast.makeText(context, "小组件设置已保存", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        // 关于弹窗：版本、作者主页、检查更新、功能介绍、使用说明
+        if (aboutOpen) {
+            AboutDialog(
+                onDismiss = { aboutOpen = false },
+                onCheckUpdate = {
+                    aboutOpen = false
+                    checkForUpdate(manual = true)
                 }
             )
         }
@@ -1414,4 +1436,129 @@ fun StatsView(todos: List<Todo>) {
 @Composable
 private fun StatLine(text: String, color: Color) {
     Text(text, fontSize = 14.sp, color = color)
+}
+
+/**
+ * 关于弹窗：当前版本、作者 GitHub 主页、检查更新、功能介绍、使用说明。
+ * 用「大标题 + 可滚动正文」结构，滚动区里分段展示，手机上体验舒服。
+ */
+@Composable
+fun AboutDialog(onDismiss: () -> Unit, onCheckUpdate: () -> Unit) {
+    val context = LocalContext.current
+
+    fun openUrl(url: String) {
+        try {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        } catch (e: Exception) {
+            Toast.makeText(context, "打不开浏览器：${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        },
+        dismissButton = {
+            TextButton(onClick = onCheckUpdate) { Text("检查更新") }
+        },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🧠", fontSize = 22.sp)
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text("小脑 Little Brain", fontWeight = FontWeight.Bold)
+                    Text(
+                        "v${AppUpdater.currentVersionName()}",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // 作者主页
+                Text(
+                    "作者 GitHub 主页",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    "@startime-ltk  ·  点击访问",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { openUrl(AppUpdater.GITHUB_HOME) }
+                )
+                Text(
+                    "项目仓库",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    "github.com/startime-ltk/little-brian  ·  点击访问",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { openUrl(AppUpdater.GITHUB_REPO) }
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                // 功能介绍
+                Text("功能介绍", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    """
+                    · 待办管理：添加、勾选完成、编辑（✏️）、删除（滑动确认）、撤销
+                    · 分类标签：无 / 工作 / 学习 / 生活，四色区分
+                    · 置顶：长按待办即可置顶，重要的事排最前
+                    · 到期提醒：设到期时间，到点通过系统通知提醒（精确闹钟，重启自动重排）
+                    · 重复待办：每天 / 每周 / 每月自动顺延
+                    · 日记时间轴：按到期日把待办串成竖向时间线
+                    · 完成率统计：圆环 + 分类进度，一眼看清进度
+                    · 桌面小组件：桌面上直接勾选完成，一键创建
+                    · 搜索与筛选：按关键字、按分类快速找
+                    · 备份恢复：导出 / 导入 JSON 备份，批量导入多行文本
+                    · 应用内更新：检查到新版本点一下即可升级
+                    """.trimIndent(),
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                // 使用说明
+                Text("使用说明", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    """
+                    1. 添加待办：底部输入框打字后回车，或用桌面小组件的「＋」直接记
+                    2. 完成：点左侧圆框勾选；周期待办勾选后自动顺延到下一周期
+                    3. 编辑 / 删除：点「✏️」进入编辑；左滑露出删除按钮，点击后确认删除
+                    4. 分类 / 到期：在添加或编辑框里选分类色、设到期日（设了就自动提醒）
+                    5. 视图切换：顶部「列表 / 时间轴 / 统计」三个标签自由切换
+                    6. 加桌面组件：App 顶栏「＋桌面」；或长按桌面 → 小组件 → 小脑
+                    7. 数据备份：菜单「导出备份」存 JSON，「导入备份」恢复
+                    """.trimIndent(),
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                Text(
+                    "纯本地离线应用 · 数据只存在你的手机上 · 不联网、不上传",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    )
 }

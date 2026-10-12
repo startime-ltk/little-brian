@@ -61,6 +61,15 @@ object AppUpdater {
     /** 当前已安装的 versionCode（用 BuildConfig，避免老 API 兼容麻烦） */
     fun currentVersionCode(): Int = BuildConfig.VERSION_CODE
 
+    /** 当前已安装的 versionName，例如 "1.14" */
+    fun currentVersionName(): String = BuildConfig.VERSION_NAME
+
+    /** 作者 GitHub 主页（关于页跳转用） */
+    const val GITHUB_HOME = "https://github.com/startime-ltk"
+
+    /** 项目仓库地址 */
+    const val GITHUB_REPO = "https://github.com/startime-ltk/little-brian"
+
     /** 是否允许安装未知来源 APK（Android 8+ 需要用户在设置里开启） */
     fun canInstallPackages(context: Context): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
