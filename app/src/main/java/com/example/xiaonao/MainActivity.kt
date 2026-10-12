@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -154,6 +155,8 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     var widgetSettingsOpen by remember { mutableStateOf(false) }
     // 当前被滑开（露出删除按钮）的待办 id；用于「点其它地方自动收起」
     var openItemId by remember { mutableStateOf<Long?>(null) }
+    // 点了滑出的「删除」按钮、等待确认的那条待办（非 null 时弹确认框）
+    var pendingDelete by remember { mutableStateOf<Todo?>(null) }
     // 底部视图切换：0=列表 1=时间轴 2=统计
     var tab by remember { mutableStateOf(0) }
     // 应用内更新相关状态
@@ -441,9 +444,9 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                 else -> {}
                             }
                         }
-                        // 别的行打开时，把这一条（若还开着）自动收起
+                        // 别的行打开 / 点空白处 / 取消删除时，把这一条（若还开着）自动收起
                         LaunchedEffect(openItemId) {
-                            if (openItemId != null && openItemId != todo.id &&
+                            if (openItemId != todo.id &&
                                 dismissState.currentValue != SwipeToDismissBoxValue.Settled
                             ) {
                                 dismissState.snapTo(SwipeToDismissBoxValue.Settled)
@@ -452,17 +455,23 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                         SwipeToDismissBox(
                             state = dismissState,
                             backgroundContent = {
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .background(Color(0xFFE53935))
-                                        .clickable(
-                                            enabled = dismissState.currentValue == SwipeToDismissBoxValue.EndToStart
-                                        ) { onDelete(todo) }
-                                        .padding(end = 24.dp),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Text("🗑 点击删除", color = Color.White)
+                                // 只露出右侧窄窄一条删除区（不再整行铺满红色）
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                                    Box(
+                                        Modifier
+                                            .width(88.dp)
+                                            .fillMaxHeight()
+                                            .background(Color(0xFFE53935))
+                                            .clickable(
+                                                enabled = dismissState.currentValue == SwipeToDismissBoxValue.EndToStart
+                                            ) { pendingDelete = todo },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("🗑", fontSize = 20.sp)
+                                            Text("删除", color = Color.White, fontSize = 12.sp)
+                                        }
+                                    }
                                 }
                             }
                         ) {
@@ -492,6 +501,33 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 if (tab == 1) TimelineView(todos = todos, onEdit = { editing = it })
                 if (tab == 2) StatsView(todos = todos)
             }
+        }
+
+        // 删除确认弹窗：点滑出的「删除」按钮后先问一句，确认才真删
+        pendingDelete?.let { todo ->
+            AlertDialog(
+                onDismissRequest = {
+                    pendingDelete = null
+                    openItemId = null
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingDelete = null
+                        openItemId = null
+                        onDelete(todo)
+                    }) { Text("删除", color = Color(0xFFE53935)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        pendingDelete = null
+                        openItemId = null
+                    }) { Text("取消") }
+                },
+                title = { Text("删除这条待办？") },
+                text = {
+                    Text("「${todo.title}」将被删除，删完可在底部提示里点「撤销」恢复。")
+                }
+            )
         }
 
         // 编辑弹窗
