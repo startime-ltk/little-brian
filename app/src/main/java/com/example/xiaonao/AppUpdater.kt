@@ -30,9 +30,9 @@ import java.net.URL
  */
 object AppUpdater {
 
-    // TODO: 改成你自己的仓库路径（main 可换成分支名）
+    // 小脑 Little Brain 的更新清单地址（little-brian 仓库 main 分支）
     private const val UPDATE_JSON_URL =
-        "https://raw.githubusercontent.com/OWNER/REPO/main/update/latest.json"
+        "https://raw.githubusercontent.com/startime-ltk/little-brian/main/update/latest.json"
 
     private const val PREFS = "xiaonao_update"
     private const val KEY_LAST_CHECK = "last_check_ms"

@@ -15,4 +15,5 @@ captures/
 *.aab
 *.keystore
 *.log
+keystore.properties
 !gradle/wrapper/gradle-wrapper.jar

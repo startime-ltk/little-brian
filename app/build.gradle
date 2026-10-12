@@ -14,18 +14,40 @@ android {
     namespace 'com.example.xiaonao'
     compileSdk 34
 
+    // 读取不入库的 keystore.properties（含签名密码），不存在时跳过签名
+    def keyProps = new Properties()
+    def keyFile = rootProject.file('keystore.properties')
+    if (keyFile.exists()) {
+        keyFile.withInputStream { keyProps.load(it) }
+    }
+    def hasSigning = keyProps.containsKey('STORE_FILE')
+
     defaultConfig {
         applicationId 'com.example.xiaonao'
         minSdk 21
         targetSdk 34
-        versionCode 16
-        versionName '1.10'
+        versionCode 17
+        versionName '1.11'
+    }
+
+    signingConfigs {
+        if (hasSigning) {
+            release {
+                storeFile rootProject.file(keyProps['STORE_FILE'])
+                storePassword keyProps['STORE_PASSWORD']
+                keyAlias keyProps['KEY_ALIAS']
+                keyPassword keyProps['KEY_PASSWORD']
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
