@@ -98,6 +98,7 @@ import com.example.xiaonao.data.RepeatRule
 import com.example.xiaonao.data.Todo
 import com.example.xiaonao.widget.TodoWidgetProvider
 import com.example.xiaonao.widget.WidgetConfigActivity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -163,6 +164,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     var updateInfo by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
     var updating by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0) }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -572,7 +574,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 onDismissRequest = { updateInfo = null },
                 confirmButton = {
                     TextButton(onClick = {
-                        scope.launch {
+                        downloadJob = scope.launch {
                             if (!AppUpdater.canInstallPackages(context)) {
                                 Toast.makeText(
                                     context,
@@ -591,6 +593,9 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                 updating = false
                                 updateInfo = null
                                 AppUpdater.installApk(context, file)
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                updating = false
+                                Toast.makeText(context, "已取消更新", Toast.LENGTH_SHORT).show()
                             } catch (e: Exception) {
                                 updating = false
                                 Toast.makeText(
@@ -613,16 +618,26 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
             )
         }
 
-        // 下载中：进度对话框（不可取消，避免误关）
+        // 下载中：进度对话框（带取消按钮，网络卡住时可退出）
         if (updating) {
             AlertDialog(
                 onDismissRequest = { },
-                confirmButton = { },
+                confirmButton = {
+                    TextButton(onClick = {
+                        downloadJob?.cancel()
+                        updating = false
+                    }) { Text("取消") }
+                },
                 title = { Text("正在下载更新…") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         LinearProgressIndicator(progress = { downloadProgress / 100f })
-                        Text("${downloadProgress}%", fontSize = 13.sp, color = Color.Gray)
+                        Text(
+                            if (downloadProgress == 0) "正在连接下载源…（国内网络会自动切换加速镜像）"
+                            else "${downloadProgress}%",
+                            fontSize = 13.sp,
+                            color = Color.Gray
+                        )
                     }
                 }
             )

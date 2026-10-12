@@ -11,6 +11,7 @@ import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -33,6 +34,18 @@ object AppUpdater {
     // 小脑 Little Brain 的更新清单地址（little-brian 仓库 main 分支）
     private const val UPDATE_JSON_URL =
         "https://raw.githubusercontent.com/startime-ltk/little-brian/main/update/latest.json"
+
+    // 国内直连 GitHub 经常失败：这些是常用的加速镜像前缀，
+    // 直连失败时会依次拼接「镜像 + 原地址」重试（镜像只做透明代理，不改文件内容）
+    private val MIRROR_PREFIXES = listOf(
+        "https://ghfast.top/",
+        "https://gh-proxy.com/",
+        "https://ghproxy.net/"
+    )
+
+    /** 生成候选地址列表：原始地址放最前，其后是各镜像拼接版 */
+    private fun candidates(url: String): List<String> =
+        listOf(url) + MIRROR_PREFIXES.map { it + url }
 
     private const val PREFS = "xiaonao_update"
     private const val KEY_LAST_CHECK = "last_check_ms"
@@ -68,27 +81,33 @@ object AppUpdater {
     }
 
     /**
-     * 拉取 latest.json 并解析。失败返回 null（网络异常 / 仓库未配置都算失败，静默忽略）。
+     * 拉取 latest.json 并解析。直连失败自动切换镜像重试；
+     * 全部失败返回 null（网络异常 / 仓库未配置都算失败，静默忽略）。
      */
     suspend fun fetchLatest(): UpdateInfo? = withContext(Dispatchers.IO) {
-        try {
-            val conn = URL(UPDATE_JSON_URL).openConnection() as HttpURLConnection
-            conn.connectTimeout = 8000
-            conn.readTimeout = 8000
-            conn.instanceFollowRedirects = true
-            val text = conn.inputStream.bufferedReader().use { it.readText() }
-            conn.disconnect()
-            val obj = JSONObject(text)
-            UpdateInfo(
-                versionCode = obj.getInt("versionCode"),
-                versionName = obj.getString("versionName"),
-                apkUrl = obj.getString("apkUrl"),
-                note = obj.optString("note", "")
-            )
-        } catch (e: Exception) {
-            Log.w("AppUpdater", "拉取更新信息失败：${e.message}")
-            null
+        var lastError: Exception? = null
+        for (url in candidates(UPDATE_JSON_URL)) {
+            try {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 8000
+                conn.readTimeout = 8000
+                conn.instanceFollowRedirects = true
+                val text = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                val obj = JSONObject(text)
+                return@withContext UpdateInfo(
+                    versionCode = obj.getInt("versionCode"),
+                    versionName = obj.getString("versionName"),
+                    apkUrl = obj.getString("apkUrl"),
+                    note = obj.optString("note", "")
+                )
+            } catch (e: Exception) {
+                lastError = e
+                Log.w("AppUpdater", "拉取更新信息失败（$url）：${e.message}")
+            }
         }
+        Log.w("AppUpdater", "所有地址均拉取失败：${lastError?.message}")
+        null
     }
 
     /** 是否有可用更新（远端 versionCode 更大） */
@@ -97,34 +116,55 @@ object AppUpdater {
 
     /**
      * 下载 APK 到应用私有目录（无需存储权限），onProgress 回调 0~100 的进度。
-     * 返回下载好的文件，失败抛异常。
+     * 直连失败自动切换国内镜像重试；支持协程取消（取消后循环内立即退出）。
+     * 返回下载好的文件，全部失败抛异常。
      */
     suspend fun downloadApk(
         context: Context,
         apkUrl: String,
         onProgress: (Int) -> Unit
     ): File = withContext(Dispatchers.IO) {
-        val conn = URL(apkUrl).openConnection() as HttpURLConnection
-        conn.connectTimeout = 15000
-        conn.readTimeout = 30000
-        conn.instanceFollowRedirects = true
-        val total = conn.contentLength.takeIf { it > 0 } ?: -1
-        val dir = context.getExternalFilesDir(null) ?: context.filesDir
-        val file = File(dir, "update.apk")
-        conn.inputStream.use { input ->
-            FileOutputStream(file).use { out ->
-                val buf = ByteArray(8 * 1024)
-                var read: Int
-                var downloaded = 0L
-                while (input.read(buf).also { read = it } != -1) {
-                    out.write(buf, 0, read)
-                    downloaded += read
-                    if (total > 0) onProgress((downloaded * 100 / total).toInt())
+        var lastError: Exception? = null
+        for (url in candidates(apkUrl)) {
+            try {
+                val conn = URL(url).openConnection() as HttpURLConnection
+                conn.connectTimeout = 10000
+                conn.readTimeout = 15000
+                conn.instanceFollowRedirects = true
+                val total = conn.contentLength.takeIf { it > 0 } ?: -1
+                val dir = context.getExternalFilesDir(null) ?: context.filesDir
+                val file = File(dir, "update.apk")
+                var lastReported = -1
+                conn.inputStream.use { input ->
+                    FileOutputStream(file).use { out ->
+                        val buf = ByteArray(8 * 1024)
+                        var read: Int
+                        var downloaded = 0L
+                        while (input.read(buf).also { read = it } != -1) {
+                            out.write(buf, 0, read)
+                            downloaded += read
+                            if (total > 0) {
+                                val pct = (downloaded * 100 / total).toInt()
+                                if (pct != lastReported) {
+                                    lastReported = pct
+                                    onProgress(pct)
+                                }
+                            }
+                            // 支持取消：协程被 cancel 时这里立即抛出退出
+                            coroutineContext.ensureActive()
+                        }
+                    }
                 }
+                conn.disconnect()
+                return@withContext file
+            } catch (e: Exception) {
+                lastError = e
+                Log.w("AppUpdater", "下载失败（$url）：${e.message}")
+                // 用户主动取消时不再尝试其它地址
+                if (e is kotlinx.coroutines.CancellationException) throw e
             }
         }
-        conn.disconnect()
-        file
+        throw lastError ?: IllegalStateException("所有下载地址均失败")
     }
 
     /** 用系统安装器安装下载好的 APK（FileProvider 共享，兼容 Android 7+） */
