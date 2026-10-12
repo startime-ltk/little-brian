@@ -23,6 +23,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -39,13 +50,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -81,6 +94,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.colorResource
@@ -242,12 +256,22 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
         }
     }
 
-    MaterialTheme {
+    XiaoNaoTheme {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text("小脑") },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🧠", fontSize = 20.sp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "小脑",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
                     actions = {
                         TextButton(onClick = { tryAddWidgetToHome(context) }) {
                             Text("＋桌面")
@@ -416,18 +440,48 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 Spacer(Modifier.height(12.dp))
 
                 if (shown.isEmpty()) {
-                    Text(
-                        when {
-                            todos.isEmpty() -> "还没有待办，添加一个吧～"
-                            query.isNotBlank() -> "没有匹配「$query」的待办"
-                            else -> "「${filterCategory.label}」分类下暂无待办"
-                        },
-                        Modifier.padding(top = 24.dp)
-                    )
+                    val tip = when {
+                        todos.isEmpty() -> "还没有待办，添加一个吧～"
+                        query.isNotBlank() -> "没有匹配「$query」的待办"
+                        else -> "「${filterCategory.label}」分类下暂无待办"
+                    }
+                    val icon = when {
+                        todos.isEmpty() -> "🌱"
+                        query.isNotBlank() -> "🔍"
+                        else -> "📂"
+                    }
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(icon, fontSize = 40.sp)
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            tip,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(shown, key = { it.id }) { todo ->
+                    itemsIndexed(shown, key = { _, it -> it.id }) { index, todo ->
+                        // 每条待办入场：轻微上滑 + 淡入，错峰出现更有节奏
+                        var appeared by remember { mutableStateOf(false) }
+                        LaunchedEffect(todo.id) { appeared = true }
+                        AnimatedVisibility(
+                            visible = appeared,
+                            enter = fadeIn(tween(260, delayMillis = (index % 12) * 35)) +
+                                slideInVertically(
+                                    spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    ),
+                                    initialOffsetY = { it / 3 }
+                                )
+                        ) {
                         // 滑开不立即删除：停在「打开」状态露出删除按钮，点按钮才删
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
@@ -497,6 +551,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                 onCopy = { copyTodo(context, todo.title) }
                             )
                         }
+                        }  // AnimatedVisibility
                     }
                 }
                 }
@@ -720,42 +775,66 @@ fun TodoRow(
     onCopy: () -> Unit
 ) {
     val cat = Category.from(todo.category)
+    // 完成态：卡片底色淡出为浅灰蓝，文字变灰；用动画过渡，勾选更有反馈感
+    val containerColor by animateColorAsState(
+        targetValue = if (todo.done) MaterialTheme.colorScheme.surfaceVariant
+        else MaterialTheme.colorScheme.surface,
+        animationSpec = tween(280),
+        label = "rowBg"
+    )
+    // 勾选时卡片轻微缩放，像「按下去」的反馈
+    val scale by animateFloatAsState(
+        targetValue = if (todo.done) 0.985f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "rowScale"
+    )
     Card(
         Modifier
             .fillMaxWidth()
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clickable { onEdit() }
             .pointerInput(Unit) {
                 detectTapGestures(onLongPress = { onTogglePin() })
-            }
+            },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (todo.done) 0.dp else 1.5.dp)
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Checkbox(checked = todo.done, onCheckedChange = { onToggle() })
 
-            // 分类色点
+            // 分类色点（外圈带一圈淡色光晕，视觉更柔和）
             Box(
                 Modifier
-                    .size(10.dp)
-                    .background(colorResource(cat.colorRes), CircleShape)
-            )
+                    .size(16.dp)
+                    .background(colorResource(cat.colorRes).copy(alpha = 0.18f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .size(9.dp)
+                        .background(colorResource(cat.colorRes), CircleShape)
+                )
+            }
 
             // 标题（置顶项加 📌）+ 其下方的备注小字
-            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Text(
                     (if (todo.pinned) "📌 " else "") + todo.title,
                     textDecoration = if (todo.done) TextDecoration.LineThrough else TextDecoration.None,
-                    color = if (todo.done) Color.Gray else Color.Unspecified,
+                    color = if (todo.done) Color.Gray else MaterialTheme.colorScheme.onSurface,
                     fontWeight = if (todo.pinned || cat != Category.NONE) FontWeight.Bold else FontWeight.Normal
                 )
                 if (todo.note.isNotBlank()) {
                     Text(
                         todo.note,
                         fontSize = 12.sp,
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2
                     )
                 }
@@ -768,7 +847,8 @@ fun TodoRow(
                     (if (overdue) "⏰ " else "🔔 ") + formatDate(todo.dueDate),
                     Modifier.padding(start = 8.dp),
                     fontSize = 12.sp,
-                    color = if (overdue) Color(0xFFE53935) else Color.Gray
+                    color = if (overdue) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -779,7 +859,7 @@ fun TodoRow(
                     "🔁${rule.label}",
                     Modifier.padding(start = 8.dp),
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -1100,7 +1180,14 @@ fun dayStart(ts: Long): Long {
 fun TimelineView(todos: List<Todo>, onEdit: (Todo) -> Unit) {
     if (todos.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("还没有待办，去「列表」添加一条吧～", color = Color.Gray)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("🗓️", fontSize = 40.sp)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "还没有待办，去「列表」添加一条吧～",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         return
     }
@@ -1130,8 +1217,8 @@ fun TimelineView(todos: List<Todo>, onEdit: (Todo) -> Unit) {
                         if (key.third.isNotBlank())
                             Text(key.third, fontSize = 11.sp, color = Color.Gray)
                         Spacer(Modifier.height(4.dp))
-                        Box(Modifier.size(12.dp).background(Color(0xFF6750A4), CircleShape))
-                        Box(Modifier.width(2.dp).weight(1f).background(Color(0xFFE0E0E0)))
+                        Box(Modifier.size(12.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                        Box(Modifier.width(2.dp).weight(1f).background(MaterialTheme.colorScheme.outlineVariant))
                     }
                     Spacer(Modifier.width(12.dp))
                     // 右侧：当天待办卡片列表
@@ -1154,7 +1241,9 @@ fun TimelineCard(todo: Todo, onEdit: (Todo) -> Unit) {
     Card(
         Modifier
             .fillMaxWidth()
-            .clickable { onEdit(todo) }
+            .clickable { onEdit(todo) },
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Row(
             Modifier
@@ -1162,20 +1251,32 @@ fun TimelineCard(todo: Todo, onEdit: (Todo) -> Unit) {
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(10.dp).background(colorResource(cat.colorRes), CircleShape))
-            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+            Box(
+                Modifier
+                    .size(16.dp)
+                    .background(colorResource(cat.colorRes).copy(alpha = 0.18f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(Modifier.size(9.dp).background(colorResource(cat.colorRes), CircleShape))
+            }
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Text(
                     (if (todo.pinned) "📌 " else "") + todo.title,
                     textDecoration = if (todo.done) TextDecoration.LineThrough else TextDecoration.None,
-                    color = if (todo.done) Color.Gray else Color.Unspecified,
+                    color = if (todo.done) Color.Gray else MaterialTheme.colorScheme.onSurface,
                     fontWeight = if (todo.pinned) FontWeight.Bold else FontWeight.Normal
                 )
                 if (todo.note.isNotBlank())
-                    Text(todo.note, fontSize = 12.sp, color = Color.Gray, maxLines = 2)
+                    Text(todo.note, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
             }
             val rule = RepeatRule.from(todo.repeat)
             if (rule != RepeatRule.NONE)
-                Text("🔁${rule.label}", Modifier.padding(start = 8.dp), fontSize = 12.sp, color = Color.Gray)
+                Text(
+                    "🔁${rule.label}",
+                    Modifier.padding(start = 8.dp),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             Checkbox(checked = todo.done, onCheckedChange = { })
         }
     }
@@ -1198,6 +1299,17 @@ fun StatsView(todos: List<Todo>) {
         Triple(cat, items.count { it.done }, items.size)
     }
 
+    // 数字与圆环做「滚上去」的动画：数据变化时平滑过渡，更有生命感
+    val rateAnim by animateFloatAsState(
+        targetValue = rate,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "rate"
+    )
+    val totalAnim by animateIntAsState(total, tween(500), label = "total")
+    val doneAnim by animateIntAsState(done, tween(500), label = "done")
+    val activeAnim by animateIntAsState(active, tween(500), label = "active")
+    val overdueAnim by animateIntAsState(overdue, tween(500), label = "overdue")
+
     Column(
         Modifier
             .fillMaxSize()
@@ -1206,32 +1318,49 @@ fun StatsView(todos: List<Todo>) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // 总完成率圆环
-        Card(Modifier.fillMaxWidth()) {
-                        Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(Modifier.size(110.dp), contentAlignment = Alignment.Center) {
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.size(110.dp), contentAlignment = Alignment.Center) {
+                    // 底环（浅色轨道）
                     CircularProgressIndicator(
-                        progress = { rate },
+                        progress = { 1f },
                         Modifier.size(110.dp),
                         strokeWidth = 10.dp,
-                        color = Color(0xFF6750A4)
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    CircularProgressIndicator(
+                        progress = { rateAnim },
+                        Modifier.size(110.dp),
+                        strokeWidth = 10.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("${(rate * 100).toInt()}%", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                        Text("完成率", fontSize = 12.sp, color = Color.Gray)
+                        Text(
+                            "${(rateAnim * 100).toInt()}%",
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text("完成率", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("共 $total 条", fontSize = 14.sp)
-                    Text("已完成 $done 条", fontSize = 14.sp, color = Color(0xFF00897B))
-                    Text("待完成 $active 条", fontSize = 14.sp, color = Color(0xFFF57C00))
-                    if (overdue > 0)
-                        Text("已逾期 $overdue 条", fontSize = 14.sp, color = Color(0xFFE53935))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatLine("共 $totalAnim 条", MaterialTheme.colorScheme.onSurface)
+                    StatLine("已完成 $doneAnim 条", Color(0xFF3AA6A0))
+                    StatLine("待完成 $activeAnim 条", Color(0xFFF2994A))
+                    if (overdueAnim > 0)
+                        StatLine("已逾期 $overdueAnim 条", MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -1239,16 +1368,50 @@ fun StatsView(todos: List<Todo>) {
         Text("分类完成情况", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         byCat.forEach { (cat, d, n) ->
             val r = if (n == 0) 0f else d.toFloat() / n
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).background(colorResource(cat.colorRes), CircleShape))
-                Text(cat.label, Modifier.width(56.dp).padding(start = 8.dp), fontSize = 13.sp)
-                LinearProgressIndicator(
-                    progress = { r },
-                    Modifier.weight(1f),
-                    color = Color(0xFF6750A4)
+            val rAnim by animateFloatAsState(
+                targetValue = r,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow),
+                label = "catRate"
+            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .size(16.dp)
+                        .background(colorResource(cat.colorRes).copy(alpha = 0.18f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(Modifier.size(9.dp).background(colorResource(cat.colorRes), CircleShape))
+                }
+                Text(
+                    cat.label,
+                    Modifier.width(56.dp).padding(start = 8.dp),
+                    fontSize = 13.sp
                 )
-                Text("$d/$n", Modifier.padding(start = 8.dp), fontSize = 12.sp, color = Color.Gray)
+                LinearProgressIndicator(
+                    progress = { rAnim },
+                    Modifier.weight(1f).height(8.dp),
+                    color = colorResource(cat.colorRes),
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                )
+                Text(
+                    "$d/$n",
+                    Modifier.padding(start = 8.dp),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
+}
+
+/** 统计页的一行数字，统一字号 */
+@Composable
+private fun StatLine(text: String, color: Color) {
+    Text(text, fontSize = 14.sp, color = color)
 }
