@@ -1,6 +1,6 @@
 {
-  "versionCode": 14,
-  "versionName": "1.8",
-  "apkUrl": "https://github.com/OWNER/REPO/releases/download/v1.8/%E5%B0%8F%E8%84%91_v1.8.apk",
-  "note": "滑动删除改为确认式；滑开的行点别处自动收起还原"
+  "versionCode": 17,
+  "versionName": "1.11",
+  "apkUrl": "https://github.com/startime-ltk/little-brian/releases/download/v1.11/little-brain-v1.11.apk",
+  "note": "应用内一键更新上线；接通 GitHub 发布；固定发布签名。含桌面小组件、到期提醒、时间轴、完成率统计、滑动确认删除。"
 }
