@@ -28,13 +28,20 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +53,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -69,6 +77,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -76,8 +85,6 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -96,7 +103,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.colorResource
@@ -267,7 +277,18 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 TopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("🧠", fontSize = 20.sp)
+                            val pulseTrans = rememberInfiniteTransition(label = "pulse")
+                            val pulse by pulseTrans.animateFloat(
+                                initialValue = 1f,
+                                targetValue = 1.12f,
+                                animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+                                label = "pulse"
+                            )
+                            Text(
+                                "🧠",
+                                fontSize = 20.sp,
+                                modifier = Modifier.graphicsLayer { scaleX = pulse; scaleY = pulse }
+                            )
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 "小脑",
@@ -364,19 +385,25 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 )
             }
         ) { padding ->
+            val isDark = isSystemInDarkTheme()
+            val pageBrush = Brush.verticalGradient(
+                colors = if (isDark) listOf(Color(0xFF0F1220), Color(0xFF141A2E))
+                else listOf(Color(0xFFF6F8FF), Color(0xFFEAF0FF))
+            )
             Column(
                 Modifier
                     .fillMaxSize()
+                    .background(pageBrush)
                     .padding(padding)
                     .padding(16.dp)
                     .clickable { if (openItemId != null) openItemId = null }
             ) {
-                // 顶部视图切换：列表 / 时间轴 / 统计
-                TabRow(selectedTabIndex = tab) {
-                    Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("列表") })
-                    Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("时间轴") })
-                    Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text("统计") })
-                }
+                // 顶部视图切换：列表 / 时间轴 / 统计（自定义滑动分段控件，更灵动）
+                SegmentedTabs(
+                    selected = tab,
+                    onSelect = { tab = it },
+                    tabs = listOf("列表", "时间轴", "统计")
+                )
 
                 Spacer(Modifier.height(12.dp))
 
@@ -401,13 +428,24 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                         singleLine = true
                     )
                     Spacer(Modifier.width(8.dp))
-                    Button(onClick = {
-                        vm.add(text, dueDate, selectedCategory.name, repeat.name)
-                        text = ""
-                        dueDate = null
-                        selectedCategory = Category.NONE
-                        repeat = RepeatRule.NONE
-                    }) { Text("添加") }
+                    Button(
+                        onClick = {
+                            vm.add(text, dueDate, selectedCategory.name, repeat.name)
+                            text = ""
+                            dueDate = null
+                            selectedCategory = Category.NONE
+                            repeat = RepeatRule.NONE
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        modifier = Modifier
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF4A6CF7), Color(0xFF7B93FF))
+                                ),
+                                RoundedCornerShape(12.dp)
+                            )
+                    ) { Text("添加", color = Color.White, fontWeight = FontWeight.Bold) }
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -467,7 +505,18 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                             .padding(top = 32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(icon, fontSize = 40.sp)
+                        val floatTrans = rememberInfiniteTransition(label = "float")
+                        val floatY by floatTrans.animateFloat(
+                            initialValue = 0f,
+                            targetValue = -8f,
+                            animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse),
+                            label = "floatY"
+                        )
+                        Text(
+                            icon,
+                            fontSize = 40.sp,
+                            modifier = Modifier.offset { IntOffset(0, floatY.roundToInt()) }
+                        )
                         Spacer(Modifier.height(10.dp))
                         Text(
                             tip,
@@ -750,6 +799,60 @@ fun RepeatChips(selected: RepeatRule, onSelect: (RepeatRule) -> Unit) {
                 onClick = { onSelect(rule) },
                 label = { Text(rule.label) }
             )
+        }
+    }
+}
+
+/**
+ * 顶部视图切换：自定义「滑动分段控件」。
+ * 选中项背后有一块脑感蓝 pill 滑块，切换时平滑滑动（弹簧感），比默认 Tab 更灵动。
+ */
+@Composable
+fun SegmentedTabs(selected: Int, onSelect: (Int) -> Unit, tabs: List<String>) {
+    val primary = MaterialTheme.colorScheme.primary
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
+    val track = MaterialTheme.colorScheme.surfaceVariant
+    val onTrack = MaterialTheme.colorScheme.onSurfaceVariant
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .background(track, RoundedCornerShape(12.dp))
+            .padding(4.dp)
+    ) {
+        val segWidth = (maxWidth - 8.dp) / tabs.size
+        val offset by animateDpAsState(
+            targetValue = segWidth * selected,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium
+            ),
+            label = "segOffset"
+        )
+        Box(
+            Modifier
+                .offset { IntOffset(offset.roundToPx(), 0) }
+                .width(segWidth)
+                .fillMaxHeight()
+                .background(primary, RoundedCornerShape(9.dp))
+        )
+        Row(Modifier.fillMaxSize()) {
+            tabs.forEachIndexed { i, label ->
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable { onSelect(i) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        label,
+                        color = if (i == selected) onPrimary else onTrack,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp
+                    )
+                }
+            }
         }
     }
 }
