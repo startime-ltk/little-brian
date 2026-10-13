@@ -1,6 +1,6 @@
 {
-  "versionCode": 22,
-  "versionName": "1.16",
-  "apkUrl": "https://github.com/startime-ltk/little-brian/releases/download/v1.16/little-brain-v1.16.apk",
-  "note": "UI 优化：滑动分段 Tab（弹簧滑动指示器）、柔光渐变背景、空状态浮动动画、渐变添加按钮、脑图标呼吸脉冲。"
+  "versionCode": 23,
+  "versionName": "1.17",
+  "apkUrl": "https://github.com/startime-ltk/little-brian/releases/download/v1.17/little-brain-v1.17.apk",
+  "note": "交互重排：添加待办改为右下角圆形＋悬浮按钮（弹窗填内容/备注/分类/到期/重复）；搜索折叠为小🔍图标；修复误触点亮整页。"
 }
