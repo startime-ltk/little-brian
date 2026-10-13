@@ -80,6 +80,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -161,11 +163,10 @@ class MainActivity : ComponentActivity() {
 fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     val context = LocalContext.current
     val todos by vm.todos.collectAsStateWithLifecycle()
-    var text by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf(Category.NONE) }
-    var dueDate by remember { mutableStateOf<Long?>(null) }
-    // 添加时的重复周期（每天 / 每周 / 每月）
-    var repeat by remember { mutableStateOf(RepeatRule.NONE) }
+    // 搜索是否展开（默认折叠为小🔍图标，点击展开输入框）
+    var searchActive by remember { mutableStateOf(false) }
+    // 添加待办弹窗开关（由右下角圆形＋按钮触发）
+    var addOpen by remember { mutableStateOf(false) }
 
     // App 内分类筛选：默认「全部」
     var filterCategory by remember { mutableStateOf(Category.NONE) }
@@ -383,6 +384,15 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                         }
                     }
                 )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { addOpen = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                ) {
+                    Text("＋", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                }
             }
         ) { padding ->
             val isDark = isSystemInDarkTheme()
@@ -396,7 +406,12 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                     .background(pageBrush)
                     .padding(padding)
                     .padding(16.dp)
-                    .clickable { if (openItemId != null) openItemId = null }
+                    .padding(bottom = 72.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            if (openItemId != null) openItemId = null
+                        })
+                    }
             ) {
                 // 顶部视图切换：列表 / 时间轴 / 统计（自定义滑动分段控件，更灵动）
                 SegmentedTabs(
@@ -408,60 +423,47 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 Spacer(Modifier.height(12.dp))
 
                 if (tab == 0) {
-                // 搜索框
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("搜索待办…") },
-                    singleLine = true
-                )
-
-                Spacer(Modifier.height(8.dp))
-
+                // 搜索：默认折叠为小🔍图标，点击展开输入框（位于分段 Tab 下方）
                 Row(Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = text,
-                        onValueChange = { text = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("添加待办…") },
-                        singleLine = true
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            vm.add(text, dueDate, selectedCategory.name, repeat.name)
-                            text = ""
-                            dueDate = null
-                            selectedCategory = Category.NONE
-                            repeat = RepeatRule.NONE
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-                        modifier = Modifier
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(Color(0xFF4A6CF7), Color(0xFF7B93FF))
-                                ),
-                                RoundedCornerShape(12.dp)
-                            )
-                    ) { Text("添加", color = Color.White, fontWeight = FontWeight.Bold) }
+                    if (searchActive) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("搜索待办…") },
+                            singleLine = true,
+                            leadingIcon = { Text("🔍", fontSize = 18.sp) },
+                            trailingIcon = {
+                                if (query.isNotBlank())
+                                    IconButton(onClick = { query = "" }) { Text("✕", fontSize = 16.sp) }
+                            }
+                        )
+                        IconButton(onClick = { searchActive = false; query = "" }) {
+                            Text("✕", fontSize = 18.sp)
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { searchActive = true }
+                        ) {
+                            Row(
+                                Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("🔍", fontSize = 18.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "搜索待办",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
                 }
-
-                Spacer(Modifier.height(8.dp))
-
-                // 分类选择（添加时）
-                CategoryChips(selected = selectedCategory, onSelect = { selectedCategory = it })
-
-                Spacer(Modifier.height(8.dp))
-
-                // 到期选择
-                DueDateRow(dueDate = dueDate) { dueDate = it }
-
-                Spacer(Modifier.height(8.dp))
-
-                // 重复周期（每天 / 每周 / 每月）
-                RepeatChips(selected = repeat, onSelect = { repeat = it })
 
                 Spacer(Modifier.height(12.dp))
 
@@ -655,6 +657,17 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 onSave = { updated ->
                     vm.update(updated)
                     editing = null
+                }
+            )
+        }
+
+        // 添加待办弹窗（右下角圆形＋按钮触发）
+        if (addOpen) {
+            AddTodoDialog(
+                onDismiss = { addOpen = false },
+                onAdd = { t, cat, due, rep, note ->
+                    vm.add(t, due, cat.name, rep.name, note)
+                    addOpen = false
                 }
             )
         }
@@ -1069,6 +1082,60 @@ fun EditTodoDialog(todo: Todo, onDismiss: () -> Unit, onSave: (Todo) -> Unit) {
                     Checkbox(checked = pinned, onCheckedChange = { pinned = it })
                     Text("置顶（排在最前）")
                 }
+            }
+        }
+    )
+}
+
+/**
+ * 添加待办弹窗：点右下角圆形＋按钮弹出。
+ * 收集 内容 / 备注 / 分类 / 到期 / 重复，确认后回调 onAdd。
+ */
+@Composable
+fun AddTodoDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String, Category, Long?, RepeatRule, String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf(Category.NONE) }
+    var dueDate by remember { mutableStateOf<Long?>(null) }
+    var repeat by remember { mutableStateOf(RepeatRule.NONE) }
+    var note by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                enabled = title.trim().isNotBlank(),
+                onClick = {
+                    onAdd(title.trim(), category, dueDate, repeat, note.trim())
+                }
+            ) { Text("添加") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        title = { Text("添加待办") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("内容") },
+                    placeholder = { Text("今天要做什么？") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text("备注（可选）") },
+                    placeholder = { Text("补充说明、链接、步骤…") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    singleLine = false
+                )
+                CategoryChips(selected = category, onSelect = { category = it })
+                DueDateRow(dueDate = dueDate) { dueDate = it }
+                RepeatChips(selected = repeat, onSelect = { repeat = it })
             }
         }
     )
@@ -1642,7 +1709,7 @@ fun AboutDialog(onDismiss: () -> Unit, onCheckUpdate: () -> Unit) {
                 Text("使用说明", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     """
-                    1. 添加待办：底部输入框打字后回车，或用桌面小组件的「＋」直接记
+                    1. 添加待办：点右下角圆形「＋」按钮弹出添加框；或用桌面小组件的「＋」直接记
                     2. 完成：点左侧圆框勾选；周期待办勾选后自动顺延到下一周期
                     3. 编辑 / 删除：点「✏️」进入编辑；左滑露出删除按钮，点击后确认删除
                     4. 分类 / 到期：在添加或编辑框里选分类色、设到期日（设了就自动提醒）
