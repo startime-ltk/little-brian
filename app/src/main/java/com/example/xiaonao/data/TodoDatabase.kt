@@ -55,10 +55,12 @@ abstract class TodoDatabase : RoomDatabase() {
             }
         }
 
-        /** v5 -> v6：新增「回收站」列（软删除时间戳，NULL 表示未删除） */
+        /** v5 -> v6：新增「回收站」列（软删除时间戳，NULL 表示未删除）。
+         *  注意必须带 DEFAULT NULL：Room 2.6+ 会校验列的 defaultValue，
+         *  与实体 @ColumnInfo(defaultValue = "NULL") 对不上就会判迁移失败、打开即崩。 */
         private val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                addColumnIfNotExists(db, "todos", "deletedAt", "INTEGER")
+                addColumnIfNotExists(db, "todos", "deletedAt", "INTEGER DEFAULT NULL")
             }
         }
 

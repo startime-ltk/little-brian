@@ -1,6 +1,6 @@
 {
-  "versionCode": 27,
-  "versionName": "1.21",
-  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.21/update/apk/little-brain-v1.21.apk",
+  "versionCode": 28,
+  "versionName": "1.22",
+  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.22/update/apk/little-brain-v1.22.apk",
   "note": "新增回收站：删除先入回收站可随时恢复，支持单条彻底删除/一键清空，30 天自动清理；误删也不怕了。"
 }
