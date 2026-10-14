@@ -1,6 +1,6 @@
 {
-  "versionCode": 24,
-  "versionName": "1.18",
-  "apkUrl": "https://github.com/startime-ltk/little-brian/releases/download/v1.18/little-brain-v1.18.apk",
-  "note": "修复主页面误触：滑动删除需滑出更长距离才触发、取消点整行进编辑（改用✏️/长按进编辑），浏览列表更顺、不易误操作。"
+  "versionCode": 25,
+  "versionName": "1.19",
+  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.19/update/apk/little-brain-v1.19.apk",
+  "note": "更新下载加速：主源切换到 jsDelivr 国内 CDN（更快更稳），失败自动回退 GitHub Release 与国内镜像；下载新增实时网速显示。"
 }
