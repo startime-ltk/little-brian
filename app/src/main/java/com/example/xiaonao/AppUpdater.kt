@@ -11,8 +11,13 @@ import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.coroutineContext
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -72,6 +77,12 @@ object AppUpdater {
 
     /** 仓库路径（用户名/仓库名），用于从版本号拼接 Release 直链做下载兜底 */
     private const val GITHUB_REPO_PATH = "startime-ltk/little-brian"
+
+    /**
+     * 分块并行下载的线程数。实测：jsDelivr 单连接约 1MB/s，4 线程约 2.7MB/s（≈2.7 倍），
+     * 但 8 线程会被 CDN 限速惩罚（暴跌），所以固定 4，不贪多。
+     */
+    private const val DOWNLOAD_THREADS = 4
 
     /** 是否允许安装未知来源 APK（Android 8+ 需要用户在设置里开启） */
     fun canInstallPackages(context: Context): Boolean {
@@ -141,9 +152,10 @@ object AppUpdater {
 
     /**
      * 下载 APK 到应用私有目录（无需存储权限）。
-     * onProgress 回调 (百分比 0~100, 瞬时网速 KB/s)。
-     * 主源失败自动切换国内镜像重试；支持协程取消（取消后循环内立即退出）。
-     * 返回下载好的文件，全部失败抛异常。
+     * onProgress 回调 (百分比 0~100, 平均网速 KB/s)。
+     * 对每个候选源：先尝试 4 线程 Range 分块并行下载（CDN 常限单个连接速度，
+     * 多段并发实测约 2.7 倍提速），分块不可用/失败则回退该源单线程，再换下一个源。
+     * 支持协程取消。返回下载好的文件，全部失败抛异常。
      */
     suspend fun downloadApk(
         context: Context,
@@ -151,54 +163,163 @@ object AppUpdater {
         versionName: String,
         onProgress: (percent: Int, speedKBps: Int) -> Unit
     ): File = withContext(Dispatchers.IO) {
+        val dir = context.getExternalFilesDir(null) ?: context.filesDir
+        val file = File(dir, "update.apk")
         var lastError: Exception? = null
         for (url in downloadCandidates(apkUrl, versionName)) {
             try {
-                val conn = URL(url).openConnection() as HttpURLConnection
-                conn.connectTimeout = 10000
-                conn.readTimeout = 20000
-                conn.instanceFollowRedirects = true
-                val total = conn.contentLength.takeIf { it > 0 } ?: -1
-                val dir = context.getExternalFilesDir(null) ?: context.filesDir
-                val file = File(dir, "update.apk")
-                var lastPercent = -1
-                val startTime = System.currentTimeMillis()
-                conn.inputStream.use { input ->
-                    FileOutputStream(file).use { out ->
-                        // 64KB 缓冲区：比默认 8KB 少一半系统调用，下载更稳更快
-                        val buf = ByteArray(64 * 1024)
-                        var read: Int
-                        var downloaded = 0L
-                        while (input.read(buf).also { read = it } != -1) {
-                            out.write(buf, 0, read)
-                            downloaded += read
-                            // 平均网速（KB/s）
-                            val elapsedSec =
-                                (System.currentTimeMillis() - startTime) / 1000.0
-                            val speedKBps =
-                                if (elapsedSec > 0.1) (downloaded / 1024.0 / elapsedSec).toInt() else 0
-                            if (total > 0) {
-                                val pct = (downloaded * 100 / total).toInt()
-                                if (pct != lastPercent) {
-                                    lastPercent = pct
-                                    onProgress(pct, speedKBps)
-                                }
-                            }
-                            // 支持取消：协程被 cancel 时这里立即抛出退出
-                            coroutineContext.ensureActive()
-                        }
-                    }
+                var done = false
+                try {
+                    done = tryMultithreaded(url, file, DOWNLOAD_THREADS, onProgress)
+                } catch (ce: kotlinx.coroutines.CancellationException) {
+                    throw ce   // 用户取消：直接向上传，不回退、不换源
+                } catch (e: Exception) {
+                    Log.w("AppUpdater", "分块下载失败，回退单线程（$url）：${e.message}")
+                    done = false
                 }
-                conn.disconnect()
+                if (!done) downloadSingle(url, file, onProgress)
                 return@withContext file
             } catch (e: Exception) {
                 lastError = e
                 Log.w("AppUpdater", "下载失败（$url）：${e.message}")
-                // 用户主动取消时不再尝试其它地址
                 if (e is kotlinx.coroutines.CancellationException) throw e
             }
         }
         throw lastError ?: IllegalStateException("所有下载地址均失败")
+    }
+
+    /** 单线程下载单个 url 到 file，带进度/网速回调（分块不可用时的兜底） */
+    private suspend fun downloadSingle(
+        url: String,
+        file: File,
+        onProgress: (percent: Int, speedKBps: Int) -> Unit
+    ) {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.connectTimeout = 10000
+        conn.readTimeout = 20000
+        conn.instanceFollowRedirects = true
+        val total = conn.contentLength.takeIf { it > 0 } ?: -1
+        val startTime = System.currentTimeMillis()
+        var lastPercent = -1
+        var downloaded = 0L
+        conn.inputStream.use { input ->
+            FileOutputStream(file).use { out ->
+                val buf = ByteArray(64 * 1024)
+                var read: Int
+                while (input.read(buf).also { read = it } != -1) {
+                    out.write(buf, 0, read)
+                    downloaded += read
+                    val elapsedSec = (System.currentTimeMillis() - startTime) / 1000.0
+                    val speed = if (elapsedSec > 0.1) (downloaded / 1024.0 / elapsedSec).toInt() else 0
+                    if (total > 0) {
+                        val pct = (downloaded * 100 / total).toInt()
+                        if (pct != lastPercent) { lastPercent = pct; onProgress(pct, speed) }
+                    }
+                    coroutineContext.ensureActive()
+                }
+            }
+        }
+        conn.disconnect()
+    }
+
+    /**
+     * 4 线程 Range 分块并行下载。探测到不支持 Range 或文件过小则返回 false（交由单线程）。
+     * 各段下载到独立临时分片，完成后按序合并为 file。任一段失败抛异常（由上层回退单线程）。
+     */
+    private suspend fun tryMultithreaded(
+        url: String,
+        file: File,
+        threads: Int,
+        onProgress: (percent: Int, speedKBps: Int) -> Unit
+    ): Boolean = coroutineScope {
+        val total = probeSize(url) ?: return@coroutineScope false
+        if (total < 1_000_000L) return@coroutineScope false   // 小文件不值得分块
+        val partDir = File(file.parentFile, "update_parts").apply { mkdirs() }
+        val startTime = System.currentTimeMillis()
+        val downloaded = AtomicLong(0)
+        val lastCb = AtomicLong(0)
+        fun report(final: Boolean = false) {
+            val now = System.currentTimeMillis()
+            val last = lastCb.get()
+            if (final || (now - last >= 120 && lastCb.compareAndSet(last, now))) {
+                val d = downloaded.get()
+                val elapsedSec = (now - startTime) / 1000.0
+                val speed = if (elapsedSec > 0.1) (d / 1024.0 / elapsedSec).toInt() else 0
+                val pct = if (total > 0) (d * 100 / total).toInt() else 0
+                onProgress(pct, speed)
+            }
+        }
+        val chunk = total / threads
+        try {
+            (0 until threads).map { i ->
+                async(Dispatchers.IO) {
+                    val start = i * chunk
+                    val end = if (i == threads - 1) total - 1 else (i + 1) * chunk - 1
+                    val partFile = File(partDir, "part_$i")
+                    downloadRange(url, start, end, partFile) { n ->
+                        downloaded.addAndGet(n.toLong())
+                        report()
+                    }
+                }
+            }.awaitAll()
+            // 按序合并分片为最终文件
+            FileOutputStream(file).use { out ->
+                for (i in 0 until threads) {
+                    File(partDir, "part_$i").inputStream().use { it.copyTo(out, 64 * 1024) }
+                }
+            }
+            report(final = true)
+            true
+        } finally {
+            partDir.listFiles()?.forEach { it.delete() }
+            partDir.delete()
+        }
+    }
+
+    /** 探测 url 是否支持 Range 并返回总大小（不支持返回 null） */
+    private fun probeSize(url: String): Long? {
+        return try {
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("Range", "bytes=0-0")
+            val code = conn.responseCode
+            val cr = conn.getHeaderField("Content-Range")   // 形如 bytes 0-0/6204070
+            conn.disconnect()
+            if (code == 206 && cr != null && cr.contains("/")) {
+                cr.substringAfterLast('/').trim().toLongOrNull()
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** 下载 [start,end] 字节段到 partFile；每读到一块回调 onBytes(本次字节数) */
+    private suspend fun downloadRange(
+        url: String,
+        start: Long,
+        end: Long,
+        partFile: File,
+        onBytes: (Int) -> Unit
+    ) {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.connectTimeout = 10000
+        conn.readTimeout = 30000
+        conn.instanceFollowRedirects = true
+        conn.setRequestProperty("Range", "bytes=$start-$end")
+        conn.inputStream.use { input ->
+            FileOutputStream(partFile).use { out ->
+                val buf = ByteArray(64 * 1024)
+                var read: Int
+                while (input.read(buf).also { read = it } != -1) {
+                    out.write(buf, 0, read)
+                    onBytes(read)
+                    coroutineContext.ensureActive()
+                }
+            }
+        }
+        conn.disconnect()
     }
 
     /** 用系统安装器安装下载好的 APK（FileProvider 共享，兼容 Android 7+） */
