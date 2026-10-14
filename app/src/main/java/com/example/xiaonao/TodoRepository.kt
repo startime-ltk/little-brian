@@ -24,6 +24,9 @@ class TodoRepository(private val context: Context, private val dao: TodoDao) {
 
     val todos: Flow<List<Todo>> = dao.observeAll()
 
+    /** 回收站内容（软删除的待办，按删除时间倒序） */
+    val trash: Flow<List<Todo>> = dao.observeTrash()
+
     suspend fun add(
         title: String,
         dueDate: Long? = null,
@@ -72,10 +75,14 @@ class TodoRepository(private val context: Context, private val dao: TodoDao) {
         return null
     }
 
+    /**
+     * 删除一条待办 —— 软删除：打上删除时间戳移入回收站（不物理删行），
+     * 之后可在回收站里恢复；同时取消它的到期提醒。
+     */
     suspend fun delete(id: Long) {
         val todo = dao.getById(id) ?: return
         AlarmScheduler.cancel(context, id)
-        dao.delete(todo)
+        dao.moveToTrash(id, System.currentTimeMillis())
     }
 
     suspend fun getById(id: Long): Todo? = dao.getById(id)
@@ -104,10 +111,36 @@ class TodoRepository(private val context: Context, private val dao: TodoDao) {
         if (!todo.done) AlarmScheduler.schedule(context, todo.copy(done = false))
     }
 
-    /** 撤销删除：按原 id 重新插入（保留 createdAt / 分类 / 到期），并重新排提醒 */
+    /** 撤销删除（底部提示的「撤销」）：清掉删除时间戳回到主列表，并重新排提醒 */
     suspend fun restore(todo: Todo) {
-        dao.insert(todo)
+        dao.insert(todo.copy(deletedAt = null))
         if (!todo.done) AlarmScheduler.schedule(context, todo.copy(done = false))
+    }
+
+    // ---------- 回收站 ----------
+
+    /** 从回收站恢复一条待办（回到主列表，重新排提醒） */
+    suspend fun restoreFromTrash(id: Long) {
+        val todo = dao.getById(id) ?: return
+        dao.restoreFromTrash(id)
+        if (!todo.done) AlarmScheduler.schedule(context, todo.copy(done = false))
+    }
+
+    /** 彻底删除一条（物理删除，不可恢复） */
+    suspend fun deleteForever(id: Long) {
+        AlarmScheduler.cancel(context, id)
+        dao.hardDelete(id)
+    }
+
+    /** 清空回收站 */
+    suspend fun clearTrash() {
+        dao.clearTrash()
+    }
+
+    /** 自动清理：回收站里超过 days 天的内容物理删除（默认 30 天），返回清理条数 */
+    suspend fun cleanOldTrash(days: Int = 30): Int {
+        val before = System.currentTimeMillis() - days * 24L * 3600 * 1000
+        return dao.cleanTrashBefore(before)
     }
 
     /** 置顶 / 取消置顶 */

@@ -27,6 +27,11 @@ class TodoViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
 
+    /** 回收站内容（软删除的待办） */
+    val trash: StateFlow<List<Todo>> = repo.trash.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+
     fun add(
         title: String,
         dueDate: Long? = null,
@@ -67,6 +72,29 @@ class TodoViewModel(app: Application) : AndroidViewModel(app) {
     fun restore(todo: Todo) = viewModelScope.launch {
         repo.restore(todo)
         TodoWidgetProvider.notifyUpdate(getApplication())
+    }
+
+    /** 从回收站恢复一条待办 */
+    fun restoreFromTrash(id: Long) = viewModelScope.launch {
+        repo.restoreFromTrash(id)
+        TodoWidgetProvider.notifyUpdate(getApplication())
+    }
+
+    /** 彻底删除一条（不可恢复） */
+    fun deleteForever(id: Long) = viewModelScope.launch {
+        repo.deleteForever(id)
+        TodoWidgetProvider.notifyUpdate(getApplication())
+    }
+
+    /** 清空回收站 */
+    fun clearTrash() = viewModelScope.launch {
+        repo.clearTrash()
+        TodoWidgetProvider.notifyUpdate(getApplication())
+    }
+
+    /** 自动清理回收站里超过 30 天的内容（启动时调一次） */
+    fun cleanOldTrash() = viewModelScope.launch {
+        repo.cleanOldTrash()
     }
 
     fun togglePin(id: Long) = viewModelScope.launch {

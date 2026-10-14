@@ -26,8 +26,8 @@ android {
         applicationId 'com.example.xiaonao'
         minSdk 21
         targetSdk 34
-        versionCode 26
-        versionName '1.20'
+        versionCode 27
+        versionName '1.21'
     }
 
     signingConfigs {

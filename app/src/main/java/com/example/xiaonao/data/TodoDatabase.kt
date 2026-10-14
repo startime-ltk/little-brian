@@ -17,10 +17,11 @@ import android.content.Context
  *  - v1.3 加了 pinned
  *  - v1.6 加了 repeat（周期性待办）
  *  - v1.7 加了 note（备注）
+ *  - v1.21 加了 deletedAt（回收站：软删除，非 null 即已进回收站）
  * 为避免老库与新 schema 对不上导致一打开就崩溃，这里把迁移做「健壮补全」：
  * 用 PRAGMA 检测列是否存在，缺哪列补哪列；并加 fallback 兜底（极端情况清数据也不闪退）。
  */
-@Database(entities = [Todo::class], version = 5, exportSchema = false)
+@Database(entities = [Todo::class], version = 6, exportSchema = false)
 abstract class TodoDatabase : RoomDatabase() {
     abstract fun todoDao(): TodoDao
 
@@ -54,6 +55,13 @@ abstract class TodoDatabase : RoomDatabase() {
             }
         }
 
+        /** v5 -> v6：新增「回收站」列（软删除时间戳，NULL 表示未删除） */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfNotExists(db, "todos", "deletedAt", "INTEGER")
+            }
+        }
+
         /** 列不存在才 ALTER 添加，避免「column already exists」把迁移搞崩 */
         private fun addColumnIfNotExists(
             db: SupportSQLiteDatabase,
@@ -83,7 +91,7 @@ abstract class TodoDatabase : RoomDatabase() {
                     TodoDatabase::class.java,
                     "xiaonao_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .fallbackToDestructiveMigration() // 任何迁移异常都清数据继续，绝不闪退
                     .build().also { INSTANCE = it }
             }

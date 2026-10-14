@@ -1,6 +1,6 @@
 {
-  "versionCode": 26,
-  "versionName": "1.20",
-  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.20/update/apk/little-brain-v1.20.apk",
-  "note": "下载再加速：4 线程 Range 分块并行下载，实测约 2.7 倍提速；分块失败自动回退单线程、再换源，稳定不减。"
+  "versionCode": 27,
+  "versionName": "1.21",
+  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.21/update/apk/little-brain-v1.21.apk",
+  "note": "新增回收站：删除先入回收站可随时恢复，支持单条彻底删除/一键清空，30 天自动清理；误删也不怕了。"
 }

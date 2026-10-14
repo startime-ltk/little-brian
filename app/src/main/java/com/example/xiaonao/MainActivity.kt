@@ -59,6 +59,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -164,6 +165,8 @@ class MainActivity : ComponentActivity() {
 fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     val context = LocalContext.current
     val todos by vm.todos.collectAsStateWithLifecycle()
+    // 回收站内容（软删除的待办，可恢复/彻底删除）
+    val trash by vm.trash.collectAsStateWithLifecycle()
     // 搜索是否展开（默认折叠为小🔍图标，点击展开输入框）
     var searchActive by remember { mutableStateOf(false) }
     // 添加待办弹窗开关（由右下角圆形＋按钮触发）
@@ -206,7 +209,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
         openItemId = null
         scope.launch {
             val res = snackbarHostState.showSnackbar(
-                message = "已删除「${todo.title}」",
+                message = "已移入回收站「${todo.title}」",
                 actionLabel = "撤销",
                 duration = SnackbarDuration.Short
             )
@@ -229,9 +232,10 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
         }
     }
 
-    // 启动后按节流自动查一次更新（默认每天最多一次）
+    // 启动后按节流自动查一次更新（默认每天最多一次）；同时清理回收站里超 30 天的内容
     LaunchedEffect(Unit) {
         if (AppUpdater.shouldAutoCheck(context)) checkForUpdate(manual = false)
+        vm.cleanOldTrash()
     }
 
     // 导出：生成 JSON 文件后用系统分享面板发出（微信/蓝牙/其他 App 都能接）
@@ -416,11 +420,11 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                         })
                     }
             ) {
-                // 顶部视图切换：列表 / 时间轴 / 统计（自定义滑动分段控件，更灵动）
+                // 顶部视图切换：列表 / 时间轴 / 统计 / 回收站（自定义滑动分段控件，更灵动）
                 SegmentedTabs(
                     selected = tab,
                     onSelect = { tab = it },
-                    tabs = listOf("列表", "时间轴", "统计")
+                    tabs = listOf("列表", "时间轴", "统计", "回收站")
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -626,6 +630,12 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 }
                 if (tab == 1) TimelineView(todos = todos, onEdit = { editing = it })
                 if (tab == 2) StatsView(todos = todos)
+                if (tab == 3) TrashView(
+                    trash = trash,
+                    onRestore = { vm.restoreFromTrash(it.id) },
+                    onDeleteForever = { vm.deleteForever(it.id) },
+                    onClearAll = { vm.clearTrash() }
+                )
             }
         }
 
@@ -651,7 +661,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 },
                 title = { Text("删除这条待办？") },
                 text = {
-                    Text("「${todo.title}」将被删除，删完可在底部提示里点「撤销」恢复。")
+                    Text("「${todo.title}」将移入回收站，删完可在底部提示里点「撤销」恢复；回收站内容 30 天后自动清理。")
                 }
             )
         }
@@ -1625,6 +1635,174 @@ fun StatsView(todos: List<Todo>) {
 @Composable
 private fun StatLine(text: String, color: Color) {
     Text(text, fontSize = 14.sp, color = color)
+}
+
+/**
+ * 回收站视图：展示软删除的待办，支持单条恢复 / 彻底删除、一键清空。
+ * 内容保留 30 天，超期在 App 启动时自动物理清理。
+ */
+@Composable
+fun TrashView(
+    trash: List<Todo>,
+    onRestore: (Todo) -> Unit,
+    onDeleteForever: (Todo) -> Unit,
+    onClearAll: () -> Unit
+) {
+    // 等待确认「彻底删除」的那条；等待确认「清空回收站」
+    var pendingForever by remember { mutableStateOf<Todo?>(null) }
+    var clearConfirm by remember { mutableStateOf(false) }
+
+    Column(Modifier.fillMaxSize()) {
+        // 顶部说明 + 清空按钮
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("回收站", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    "共 ${trash.size} 条 · 保留 30 天后自动清理",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (trash.isNotEmpty()) {
+                TextButton(onClick = { clearConfirm = true }) {
+                    Text("清空", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        if (trash.isEmpty()) {
+            // 空状态：和主列表一致的浮动小动画
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                val floatTrans = rememberInfiniteTransition(label = "trashFloat")
+                val floatY by floatTrans.animateFloat(
+                    initialValue = 0f,
+                    targetValue = -8f,
+                    animationSpec = infiniteRepeatable(tween(1200), RepeatMode.Reverse),
+                    label = "trashFloatY"
+                )
+                Text(
+                    "🗑",
+                    fontSize = 40.sp,
+                    modifier = Modifier.offset { IntOffset(0, floatY.roundToInt()) }
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "回收站是空的",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "删除的待办会先来这里，可随时恢复",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                itemsIndexed(trash, key = { _, it -> it.id }) { index, todo ->
+                    var appeared by remember { mutableStateOf(false) }
+                    LaunchedEffect(todo.id) { appeared = true }
+                    AnimatedVisibility(
+                        visible = appeared,
+                        enter = fadeIn(tween(260, delayMillis = (index % 12) * 35)) +
+                            slideInVertically(
+                                spring(
+                                    dampingRatio = Spring.DampingRatioLowBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                initialOffsetY = { it / 3 }
+                            )
+                    ) {
+                        Card(
+                            Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(Modifier.padding(14.dp)) {
+                                Text(
+                                    todo.title,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    textDecoration = if (todo.done) TextDecoration.LineThrough else null,
+                                    color = if (todo.done)
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "删除于 ${formatDateTime(todo.deletedAt ?: 0L)}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = { onRestore(todo) }) { Text("恢复") }
+                                    TextButton(onClick = { pendingForever = todo }) {
+                                        Text("彻底删除", color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 彻底删除单条前确认
+    pendingForever?.let { todo ->
+        AlertDialog(
+            onDismissRequest = { pendingForever = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteForever(todo)
+                    pendingForever = null
+                }) { Text("彻底删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingForever = null }) { Text("取消") }
+            },
+            title = { Text("彻底删除？") },
+            text = { Text("「${todo.title}」将永久删除，无法恢复。") }
+        )
+    }
+
+    // 清空回收站前确认
+    if (clearConfirm) {
+        AlertDialog(
+            onDismissRequest = { clearConfirm = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    onClearAll()
+                    clearConfirm = false
+                }) { Text("全部清空", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { clearConfirm = false }) { Text("取消") }
+            },
+            title = { Text("清空回收站？") },
+            text = { Text("回收站内 ${trash.size} 条待办将被永久删除，无法恢复。") }
+        )
+    }
+}
+
+/** 带时分的时间格式（回收站「删除于」用） */
+fun formatDateTime(ts: Long): String {
+    return SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(ts)
 }
 
 /**
