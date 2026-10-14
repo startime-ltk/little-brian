@@ -1,6 +1,6 @@
 {
-  "versionCode": 25,
-  "versionName": "1.19",
-  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.19/update/apk/little-brain-v1.19.apk",
-  "note": "更新下载加速：主源切换到 jsDelivr 国内 CDN（更快更稳），失败自动回退 GitHub Release 与国内镜像；下载新增实时网速显示。"
+  "versionCode": 26,
+  "versionName": "1.20",
+  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.20/update/apk/little-brain-v1.20.apk",
+  "note": "下载再加速：4 线程 Range 分块并行下载，实测约 2.7 倍提速；分块失败自动回退单线程、再换源，稳定不减。"
 }
