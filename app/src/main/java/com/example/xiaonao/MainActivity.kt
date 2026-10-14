@@ -797,7 +797,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                         Text(
                             when {
                                 downloadProgress == 0 ->
-                                    "正在连接下载源…（已优先使用国内 CDN 加速）"
+                                    "正在测速选择最快下载源…"
                                 downloadSpeed >= 1024 ->
                                     "${downloadProgress}% · %.1f MB/s".format(downloadSpeed / 1024.0)
                                 else ->

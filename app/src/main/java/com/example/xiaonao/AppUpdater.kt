@@ -41,11 +41,11 @@ object AppUpdater {
         "https://raw.githubusercontent.com/startime-ltk/little-brian/main/update/latest.json"
 
     // 国内直连 GitHub 经常失败：这些是常用的加速镜像前缀，
-    // 直连失败时会依次拼接「镜像 + 原地址」重试（镜像只做透明代理，不改文件内容）
+    // 直连失败时会依次拼接「镜像 + 原地址」重试（镜像只做透明代理，不改文件内容）。
+    // 注：ghproxy.net 已失效（实测 22KB/s 且常 503），v1.23 起移除。
     private val MIRROR_PREFIXES = listOf(
         "https://ghfast.top/",
-        "https://gh-proxy.com/",
-        "https://ghproxy.net/"
+        "https://gh-proxy.com/"
     )
 
     /** 生成候选地址列表：原始地址放最前，其后是各镜像拼接版 */
@@ -83,6 +83,18 @@ object AppUpdater {
      * 但 8 线程会被 CDN 限速惩罚（暴跌），所以固定 4，不贪多。
      */
     private const val DOWNLOAD_THREADS = 4
+
+    /** 测速探测：每个源采样的字节数（小请求，只为测连接+吞吐） */
+    private const val PROBE_BYTES = 96 * 1024
+
+    /** 测速探测：单源总时长硬上限（含建连），超时视为不可用 */
+    private const val PROBE_TIMEOUT_MS = 2500
+
+    /** 测速探测：低于此速度的源不配参与正式下载（6MB 要下 96 秒以上，没意义） */
+    private const val PROBE_MIN_SPEED = 64 * 1024L
+
+    /** 一个测速结果：源地址 + 实测字节/秒 */
+    private data class ProbedSource(val url: String, val speedBps: Long)
 
     /** 是否允许安装未知来源 APK（Android 8+ 需要用户在设置里开启） */
     fun canInstallPackages(context: Context): Boolean {
@@ -145,16 +157,24 @@ object AppUpdater {
      * 去重后依次尝试，某个源失败自动换下一个。
      */
     private fun downloadCandidates(apkUrl: String, versionName: String): List<String> {
-        val releaseUrl =
-            "https://github.com/$GITHUB_REPO_PATH/releases/download/v$versionName/little-brain-v$versionName.apk"
+        val releaseUrl = releaseUrl(versionName)
         return (listOf(apkUrl, releaseUrl) + MIRROR_PREFIXES.map { it + releaseUrl }).distinct()
     }
+
+    /** 由版本号拼 Release 附件直链 */
+    private fun releaseUrl(versionName: String): String =
+        "https://github.com/$GITHUB_REPO_PATH/releases/download/v$versionName/little-brain-v$versionName.apk"
 
     /**
      * 下载 APK 到应用私有目录（无需存储权限）。
      * onProgress 回调 (百分比 0~100, 平均网速 KB/s)。
-     * 对每个候选源：先尝试 4 线程 Range 分块并行下载（CDN 常限单个连接速度，
-     * 多段并发实测约 2.7 倍提速），分块不可用/失败则回退该源单线程，再换下一个源。
+     *
+     * v1.23 起改为「先测速、再下载」：
+     *  1. 对国内友好源（jsDelivr 主源 + 各镜像）**并行**发起小尺寸 Range 请求计时，
+     *     按实测速度降序得到可用源列表——手机当前网络下谁快用谁，慢源/死源直接出局；
+     *  2. 按排名逐个尝试 4 线程 Range 分块并行下载（CDN 常限单个连接速度，
+     *     多段并发实测约 2.7 倍提速）；某个源不可用就顺延到下一个排名；
+     *  3. 全部测速失败（极端网络）时走传统兜底：逐源单线程下载。
      * 支持协程取消。返回下载好的文件，全部失败抛异常。
      */
     suspend fun downloadApk(
@@ -166,26 +186,90 @@ object AppUpdater {
         val dir = context.getExternalFilesDir(null) ?: context.filesDir
         val file = File(dir, "update.apk")
         var lastError: Exception? = null
-        for (url in downloadCandidates(apkUrl, versionName)) {
+
+        // 1) 并行测速：主源 + 国内镜像（GitHub 直链不测——国内基本连不上，只留作兜底）
+        val releaseUrl = releaseUrl(versionName)
+        val probeList = (listOf(apkUrl) + MIRROR_PREFIXES.map { it + releaseUrl }).distinct()
+        val ranked = probeSources(probeList)
+        Log.i("AppUpdater", "测速完成：${ranked.size}/${probeList.size} 源可用 → ${ranked.map { "${it.speedBps / 1024}KB/s" }}")
+
+        // 2) 按实测速度排名，依次尝试分块/单线程下载
+        for (p in ranked) {
             try {
                 var done = false
                 try {
-                    done = tryMultithreaded(url, file, DOWNLOAD_THREADS, onProgress)
+                    done = tryMultithreaded(p.url, file, DOWNLOAD_THREADS, onProgress)
                 } catch (ce: kotlinx.coroutines.CancellationException) {
                     throw ce   // 用户取消：直接向上传，不回退、不换源
                 } catch (e: Exception) {
-                    Log.w("AppUpdater", "分块下载失败，回退单线程（$url）：${e.message}")
+                    Log.w("AppUpdater", "分块下载失败，回退单线程（${p.url}）：${e.message}")
                     done = false
                 }
-                if (!done) downloadSingle(url, file, onProgress)
+                if (!done) downloadSingle(p.url, file, onProgress)
                 return@withContext file
             } catch (e: Exception) {
-                lastError = e
-                Log.w("AppUpdater", "下载失败（$url）：${e.message}")
                 if (e is kotlinx.coroutines.CancellationException) throw e
+                lastError = e
+                Log.w("AppUpdater", "下载失败（${p.url}）：${e.message}")
+            }
+        }
+
+        // 3) 传统兜底：测速全挂时，按原始优先级逐源单线程硬试
+        for (url in downloadCandidates(apkUrl, versionName)) {
+            try {
+                downloadSingle(url, file, onProgress)
+                return@withContext file
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                lastError = e
+                Log.w("AppUpdater", "兜底下载失败（$url）：${e.message}")
             }
         }
         throw lastError ?: IllegalStateException("所有下载地址均失败")
+    }
+
+    /**
+     * 并行测速：对所有候选源同时发起小尺寸 Range 请求，按实测速度降序返回可用源。
+     * 连不上 / 龟速（< PROBE_MIN_SPEED）的源被过滤，正式下载时不再浪费时间。
+     */
+    private suspend fun probeSources(urls: List<String>): List<ProbedSource> = coroutineScope {
+        urls.map { url -> async(Dispatchers.IO) { probeOne(url) } }
+            .awaitAll()
+            .filterNotNull()
+            .sortedByDescending { it.speedBps }
+    }
+
+    /**
+     * 探测单个源：GET 前 PROBE_BYTES 字节，实测速度。
+     * 采样不足一半 / 总时长超 PROBE_TIMEOUT_MS / 速度低于门槛 → 返回 null。
+     */
+    private fun probeOne(url: String): ProbedSource? {
+        return try {
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = PROBE_TIMEOUT_MS
+            conn.readTimeout = PROBE_TIMEOUT_MS
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("Range", "bytes=0-${PROBE_BYTES - 1}")
+            val startMs = System.currentTimeMillis()
+            var got = 0L
+            conn.inputStream.use { input ->
+                val buf = ByteArray(16 * 1024)
+                var read: Int
+                while (input.read(buf).also { read = it } != -1) {
+                    got += read
+                    if (got >= PROBE_BYTES) break
+                    if (System.currentTimeMillis() - startMs > PROBE_TIMEOUT_MS) break
+                }
+            }
+            conn.disconnect()
+            val elapsedMs = System.currentTimeMillis() - startMs
+            if (got < PROBE_BYTES / 2 || elapsedMs <= 0) return null
+            val speed = got * 1000 / elapsedMs
+            if (speed < PROBE_MIN_SPEED) return null
+            ProbedSource(url, speed)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     /** 单线程下载单个 url 到 file，带进度/网速回调（分块不可用时的兜底） */

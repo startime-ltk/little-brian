@@ -26,8 +26,8 @@ android {
         applicationId 'com.example.xiaonao'
         minSdk 21
         targetSdk 34
-        versionCode 28
-        versionName '1.22'
+        versionCode 29
+        versionName '1.23'
     }
 
     signingConfigs {
@@ -43,7 +43,8 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (hasSigning) {
                 signingConfig signingConfigs.release

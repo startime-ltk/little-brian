@@ -1,6 +1,6 @@
 {
-  "versionCode": 28,
-  "versionName": "1.22",
-  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.22/update/apk/little-brain-v1.22.apk",
-  "note": "新增回收站：删除先入回收站可随时恢复，支持单条彻底删除/一键清空，30 天自动清理；误删也不怕了。"
+  "versionCode": 29,
+  "versionName": "1.23",
+  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.23/update/apk/little-brain-v1.23.apk",
+  "note": "下载再提速：新增并行测速自动选最快源（jsDelivr/ghfast/gh-proxy 谁快用谁）+ R8 压缩，安装包从 6.2MB 瘦到 1.3MB（-78%），下载更快更省流量。"
 }
