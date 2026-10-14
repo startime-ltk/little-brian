@@ -108,6 +108,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.input.pointer.pointerInput
@@ -545,7 +546,11 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                 )
                         ) {
                         // 滑开不立即删除：停在「打开」状态露出删除按钮，点按钮才删
+                        // 提高滑动阈值：要滑出更明显的横向距离才进入「打开」态，
+                        // 避免上下浏览列表时手一抖就误触删除
+                        val openThresholdPx = with(LocalDensity.current) { 170.dp.toPx() }
                         val dismissState = rememberSwipeToDismissBoxState(
+                            positionalThreshold = { openThresholdPx },
                             confirmValueChange = { value ->
                                 // 滑到删除位时保持在打开状态（返回 true），不自动删除；
                                 // 其它情况（回正）返回 false 让它归位
@@ -930,8 +935,8 @@ fun TodoRow(
         Modifier
             .fillMaxWidth()
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clickable { onEdit() }
             .pointerInput(Unit) {
+                // 长按置顶；单击不再进编辑（避免浏览时误触弹编辑框），编辑走行尾 ✏️ 或长按
                 detectTapGestures(onLongPress = { onTogglePin() })
             },
         shape = RoundedCornerShape(16.dp),
