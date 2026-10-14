@@ -13,6 +13,8 @@ captures/
 # 编译产物与签名相关
 *.apk
 *.aab
+# 例外：update/apk/ 下用于 jsDelivr CDN 分发的安装包需要入库
+!update/apk/*.apk
 *.keystore
 *.log
 keystore.properties

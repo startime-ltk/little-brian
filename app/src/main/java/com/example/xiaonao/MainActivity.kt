@@ -194,6 +194,8 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     var updateInfo by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
     var updating by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0) }
+    // 下载网速（KB/s），用于进度框实时显示
+    var downloadSpeed by remember { mutableStateOf(0) }
     var downloadJob by remember { mutableStateOf<Job?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -730,9 +732,15 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                             }
                             updating = true
                             downloadProgress = 0
+                            downloadSpeed = 0
                             try {
-                                val file = AppUpdater.downloadApk(context, info.apkUrl) {
-                                    downloadProgress = it
+                                val file = AppUpdater.downloadApk(
+                                    context,
+                                    info.apkUrl,
+                                    info.versionName
+                                ) { pct, speed ->
+                                    downloadProgress = pct
+                                    downloadSpeed = speed
                                 }
                                 updating = false
                                 updateInfo = null
@@ -777,8 +785,14 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         LinearProgressIndicator(progress = { downloadProgress / 100f })
                         Text(
-                            if (downloadProgress == 0) "正在连接下载源…（国内网络会自动切换加速镜像）"
-                            else "${downloadProgress}%",
+                            when {
+                                downloadProgress == 0 ->
+                                    "正在连接下载源…（已优先使用国内 CDN 加速）"
+                                downloadSpeed >= 1024 ->
+                                    "${downloadProgress}% · %.1f MB/s".format(downloadSpeed / 1024.0)
+                                else ->
+                                    "${downloadProgress}% · ${downloadSpeed} KB/s"
+                            },
                             fontSize = 13.sp,
                             color = Color.Gray
                         )

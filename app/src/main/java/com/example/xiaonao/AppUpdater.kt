@@ -70,6 +70,9 @@ object AppUpdater {
     /** 项目仓库地址 */
     const val GITHUB_REPO = "https://github.com/startime-ltk/little-brian"
 
+    /** 仓库路径（用户名/仓库名），用于从版本号拼接 Release 直链做下载兜底 */
+    private const val GITHUB_REPO_PATH = "startime-ltk/little-brian"
+
     /** 是否允许安装未知来源 APK（Android 8+ 需要用户在设置里开启） */
     fun canInstallPackages(context: Context): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -124,39 +127,61 @@ object AppUpdater {
         info != null && info.versionCode > currentVersionCode()
 
     /**
-     * 下载 APK 到应用私有目录（无需存储权限），onProgress 回调 0~100 的进度。
-     * 直连失败自动切换国内镜像重试；支持协程取消（取消后循环内立即退出）。
+     * APK 下载候选地址（按优先级）：
+     *  1. apkUrl —— latest.json 里配的主源，国内优先用 jsDelivr CDN（cdn.jsdelivr.net/gh/…）；
+     *  2. GitHub Release 附件直链（由版本号拼，作兜底）；
+     *  3. 各国内加速镜像代理上面的 Release 直链。
+     * 去重后依次尝试，某个源失败自动换下一个。
+     */
+    private fun downloadCandidates(apkUrl: String, versionName: String): List<String> {
+        val releaseUrl =
+            "https://github.com/$GITHUB_REPO_PATH/releases/download/v$versionName/little-brain-v$versionName.apk"
+        return (listOf(apkUrl, releaseUrl) + MIRROR_PREFIXES.map { it + releaseUrl }).distinct()
+    }
+
+    /**
+     * 下载 APK 到应用私有目录（无需存储权限）。
+     * onProgress 回调 (百分比 0~100, 瞬时网速 KB/s)。
+     * 主源失败自动切换国内镜像重试；支持协程取消（取消后循环内立即退出）。
      * 返回下载好的文件，全部失败抛异常。
      */
     suspend fun downloadApk(
         context: Context,
         apkUrl: String,
-        onProgress: (Int) -> Unit
+        versionName: String,
+        onProgress: (percent: Int, speedKBps: Int) -> Unit
     ): File = withContext(Dispatchers.IO) {
         var lastError: Exception? = null
-        for (url in candidates(apkUrl)) {
+        for (url in downloadCandidates(apkUrl, versionName)) {
             try {
                 val conn = URL(url).openConnection() as HttpURLConnection
                 conn.connectTimeout = 10000
-                conn.readTimeout = 15000
+                conn.readTimeout = 20000
                 conn.instanceFollowRedirects = true
                 val total = conn.contentLength.takeIf { it > 0 } ?: -1
                 val dir = context.getExternalFilesDir(null) ?: context.filesDir
                 val file = File(dir, "update.apk")
-                var lastReported = -1
+                var lastPercent = -1
+                val startTime = System.currentTimeMillis()
                 conn.inputStream.use { input ->
                     FileOutputStream(file).use { out ->
-                        val buf = ByteArray(8 * 1024)
+                        // 64KB 缓冲区：比默认 8KB 少一半系统调用，下载更稳更快
+                        val buf = ByteArray(64 * 1024)
                         var read: Int
                         var downloaded = 0L
                         while (input.read(buf).also { read = it } != -1) {
                             out.write(buf, 0, read)
                             downloaded += read
+                            // 平均网速（KB/s）
+                            val elapsedSec =
+                                (System.currentTimeMillis() - startTime) / 1000.0
+                            val speedKBps =
+                                if (elapsedSec > 0.1) (downloaded / 1024.0 / elapsedSec).toInt() else 0
                             if (total > 0) {
                                 val pct = (downloaded * 100 / total).toInt()
-                                if (pct != lastReported) {
-                                    lastReported = pct
-                                    onProgress(pct)
+                                if (pct != lastPercent) {
+                                    lastPercent = pct
+                                    onProgress(pct, speedKBps)
                                 }
                             }
                             // 支持取消：协程被 cancel 时这里立即抛出退出
