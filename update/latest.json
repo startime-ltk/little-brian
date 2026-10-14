@@ -1,6 +1,6 @@
 {
-  "versionCode": 23,
-  "versionName": "1.17",
-  "apkUrl": "https://github.com/startime-ltk/little-brian/releases/download/v1.17/little-brain-v1.17.apk",
-  "note": "交互重排：添加待办改为右下角圆形＋悬浮按钮（弹窗填内容/备注/分类/到期/重复）；搜索折叠为小🔍图标；修复误触点亮整页。"
+  "versionCode": 24,
+  "versionName": "1.18",
+  "apkUrl": "https://github.com/startime-ltk/little-brian/releases/download/v1.18/little-brain-v1.18.apk",
+  "note": "修复主页面误触：滑动删除需滑出更长距离才触发、取消点整行进编辑（改用✏️/长按进编辑），浏览列表更顺、不易误操作。"
 }
