@@ -18,10 +18,12 @@ import android.content.Context
  *  - v1.6 加了 repeat（周期性待办）
  *  - v1.7 加了 note（备注）
  *  - v1.21 加了 deletedAt（回收站：软删除，非 null 即已进回收站）
+ *  - v1.24 修复迁移：v1.21 曾短暂上线的版本漏写 DEFAULT NULL，Room 2.6+ 校验 defaultValue
+ *    会导致「打开即崩」；v6→v7 重建 todos 表补齐该默认值（老数据无损）
  * 为避免老库与新 schema 对不上导致一打开就崩溃，这里把迁移做「健壮补全」：
  * 用 PRAGMA 检测列是否存在，缺哪列补哪列；并加 fallback 兜底（极端情况清数据也不闪退）。
  */
-@Database(entities = [Todo::class], version = 6, exportSchema = false)
+@Database(entities = [Todo::class], version = 7, exportSchema = false)
 abstract class TodoDatabase : RoomDatabase() {
     abstract fun todoDao(): TodoDao
 
@@ -64,6 +66,42 @@ abstract class TodoDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v6 -> v7：修复迁移。
+         * v1.21 短暂上线的版本里 MIGRATION_5_6 漏写了 DEFAULT NULL，导致迁移后的库
+         * 与实体 schema 对不上（Room 2.6+ 校验列的 defaultValue），表现为「打开即崩」。
+         * 由于库版本号已经是 6，后续版本不会再跑 5→6 迁移，只能重建表补齐默认值。
+         * 做法：建新表（DDL 与 Room 生成的一致）→ 拷数据 → 删旧表 → 改名 → 修自增序列。
+         * 已用 sqlite3 完整演练：数据无损、deletedAt 默认值修复、自增 id 不撞号。
+         */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `todos_new` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`done` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`dueDate` INTEGER, " +
+                        "`category` TEXT NOT NULL, " +
+                        "`pinned` INTEGER NOT NULL DEFAULT 0, " +
+                        "`repeat` TEXT NOT NULL DEFAULT 'NONE', " +
+                        "`note` TEXT NOT NULL DEFAULT '', " +
+                        "`deletedAt` INTEGER DEFAULT NULL)"
+                )
+                db.execSQL(
+                    "INSERT INTO `todos_new` " +
+                        "(`id`, `title`, `done`, `createdAt`, `dueDate`, `category`, `pinned`, `repeat`, `note`, `deletedAt`) " +
+                        "SELECT `id`, `title`, `done`, `createdAt`, `dueDate`, `category`, `pinned`, `repeat`, `note`, `deletedAt` FROM `todos`"
+                )
+                db.execSQL("DROP TABLE `todos`")
+                db.execSQL("ALTER TABLE `todos_new` RENAME TO `todos`")
+                // 重建后自增序列条目会丢，按当前最大 id 重设，防止新行 id 撞号
+                db.execSQL("DELETE FROM sqlite_sequence WHERE name = 'todos'")
+                db.execSQL("INSERT INTO sqlite_sequence (name, seq) SELECT 'todos', IFNULL(MAX(id), 0) FROM todos")
+            }
+        }
+
         /** 列不存在才 ALTER 添加，避免「column already exists」把迁移搞崩 */
         private fun addColumnIfNotExists(
             db: SupportSQLiteDatabase,
@@ -93,7 +131,7 @@ abstract class TodoDatabase : RoomDatabase() {
                     TodoDatabase::class.java,
                     "xiaonao_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration() // 任何迁移异常都清数据继续，绝不闪退
                     .build().also { INSTANCE = it }
             }

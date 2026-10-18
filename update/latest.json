@@ -1,6 +1,6 @@
 {
-  "versionCode": 29,
-  "versionName": "1.23",
-  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.23/update/apk/little-brain-v1.23.apk",
-  "note": "下载再提速：新增并行测速自动选最快源（jsDelivr/ghfast/gh-proxy 谁快用谁）+ R8 压缩，安装包从 6.2MB 瘦到 1.3MB（-78%），下载更快更省流量。"
+  "versionCode": 30,
+  "versionName": "1.24",
+  "apkUrl": "https://cdn.jsdelivr.net/gh/startime-ltk/little-brian@v1.24/update/apk/little-brain-v1.24.apk",
+  "note": "紧急修复：修复 v1.23 打开闪退问题（回退 R8 配置 + 数据库修复迁移，老数据无损）。"
 }

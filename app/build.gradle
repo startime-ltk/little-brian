@@ -26,8 +26,8 @@ android {
         applicationId 'com.example.xiaonao'
         minSdk 21
         targetSdk 34
-        versionCode 29
-        versionName '1.23'
+        versionCode 30
+        versionName '1.24'
     }
 
     signingConfigs {
@@ -43,8 +43,10 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled true
-            shrinkResources true
+            // v1.24 起临时关闭 R8：v1.23 开启后出现「打开闪退」，回退到 v1.22 验证过的
+            // 稳定配置先行修复；待定位根因后再以更稳妥的 keep 规则重新开启。
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (hasSigning) {
                 signingConfig signingConfigs.release
