@@ -251,6 +251,16 @@ cd XiaoNao
 
 ---
 
+## 国际化与无障碍
+
+- **中英双语**：全部用户可见文案走 `strings.xml`（150 个 key，`values/` 中文 + `values-en/` 英文完全对齐），Compose 用 `stringResource`、非 Composable 上下文用 `context.getString`，**跟随系统语言自动切换**，无需应用内设置
+- **日期本地化**：`formatDate` / 时间轴日期格式跟随 `Locale.getDefault()`（中文「10月19日」/ 英文「Oct 19」）
+- **分类与重复周期**：枚举 `Category` / `RepeatRule` 改为持有 `@StringRes labelRes`，UI 层 `stringResource(cat.labelRes)` 取本地化文案
+- **无障碍**：FAB（添加待办）、待办行的编辑 / 复制按钮均带 `contentDescription`，读屏软件可正常朗读
+- 保留硬编码的仅三类：日志（AppUpdater）、日期格式模式（SimpleDateFormat pattern）、JSON 备份数据字段（导入校验用）
+
+---
+
 ## 已知小限制
 
 - 桌面小组件依赖 Android 系统，部分定制 ROM（如 MIUI / HarmonyOS）长按添加入口位置不同，但都支持标准 AppWidget。
