@@ -240,6 +240,17 @@ cd XiaoNao
 
 ---
 
+## 工程化：CI 与迁移测试
+
+- **GitHub Actions CI**（`.github/workflows/ci.yml`）：每次 push / PR 到 main 自动执行——检出代码 → JDK 17 → Gradle 缓存 → 编译 Debug APK → 运行单元测试 → 上传产物（APK + 测试报告，保留 14 天）。构建失败会邮件通知。
+- **Room 迁移测试**（`app/src/test/java/com/example/xiaonao/data/MigrationTest.kt`）：Robolectric 在 JVM 上跑（CI 无需模拟器），三个用例封死历史事故：
+  1. `v5到v6_补齐deletedAt列_默认NULL_数据无损`——迁移后 deletedAt 列必须存在且默认值为 NULL（v1.21 漏写 DEFAULT NULL 导致老用户打开即崩，此断言直接封死该类事故）
+  2. `v6毒库_当前代码打开不崩_数据无损_序列不撞号`——模拟 v1.21 毒库（deletedAt 无 DEFAULT NULL），用当前代码打开必须不崩（v6→v7 修复迁移兜底）、数据无损、sqlite_sequence 不撞号
+  3. `v1到v7全链路迁移_老数据无损`——最老版本用户一路升级数据无损
+- 测试实现要点：旧库用 `FrameworkSQLiteOpenHelper` 按历史 DDL 手工创建（不走 `MigrationTestHelper`——它要求 schema JSON 导出，本项目 `exportSchema = false`）；打开时故意不加 `fallbackToDestructiveMigration`，迁移失败必须抛异常让测试变红。
+
+---
+
 ## 已知小限制
 
 - 桌面小组件依赖 Android 系统，部分定制 ROM（如 MIUI / HarmonyOS）长按添加入口位置不同，但都支持标准 AppWidget。
