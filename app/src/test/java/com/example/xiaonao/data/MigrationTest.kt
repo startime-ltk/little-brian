@@ -3,6 +3,7 @@ package com.example.xiaonao.data
 import android.content.Context
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
+import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
@@ -115,12 +116,12 @@ class MigrationTest {
         val db = openMigratedDb()
 
         // 老数据无损
-        db.query("SELECT COUNT(*) FROM todos").use { c ->
+        db.query(SimpleSQLiteQuery("SELECT COUNT(*) FROM todos")).use { c ->
             assertTrue(c.moveToFirst())
             assertEquals(1, c.getInt(0))
         }
         // deletedAt 列存在，且默认值必须是 'NULL'（v1.21 漏的就是这个）
-        db.query("PRAGMA table_info(todos)").use { c ->
+        db.query(SimpleSQLiteQuery("PRAGMA table_info(todos)")).use { c ->
             val nameIdx = c.getColumnIndex("name")
             val dfltIdx = c.getColumnIndex("dflt_value")
             var found = false
@@ -142,12 +143,12 @@ class MigrationTest {
         val db = openMigratedDb()
 
         // 毒库老数据无损
-        db.query("SELECT COUNT(*) FROM todos").use { c ->
+        db.query(SimpleSQLiteQuery("SELECT COUNT(*) FROM todos")).use { c ->
             assertTrue(c.moveToFirst())
             assertEquals(2, c.getInt(0))
         }
         // 修复迁移重建了 sqlite_sequence：seq 必须等于当前最大 id（2），新行才不会撞号
-        db.query("SELECT seq FROM sqlite_sequence WHERE name = 'todos'").use { c ->
+        db.query(SimpleSQLiteQuery("SELECT seq FROM sqlite_sequence WHERE name = 'todos'")).use { c ->
             assertTrue(c.moveToFirst())
             assertEquals(2, c.getInt(0))
         }
@@ -159,7 +160,7 @@ class MigrationTest {
         createV1Db()
         val db = openMigratedDb()
 
-        db.query("SELECT title, done FROM todos").use { c ->
+        db.query(SimpleSQLiteQuery("SELECT title, done FROM todos")).use { c ->
             assertTrue(c.moveToFirst())
             assertEquals("v1远古数据", c.getString(0))
             assertEquals(1, c.getInt(1))
