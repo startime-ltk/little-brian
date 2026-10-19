@@ -54,6 +54,7 @@ class MigrationTest {
     private fun openMigratedDb(): TodoDatabase =
         Room.databaseBuilder(context, TodoDatabase::class.java, TEST_DB)
             .addMigrations(*TodoDatabase.migrations())
+            .allowMainThreadQueries() // 测试专用：Robolectric 在主线程执行测试方法
             .build()
 
     /**
