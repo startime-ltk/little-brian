@@ -121,6 +121,10 @@ abstract class TodoDatabase : RoomDatabase() {
             }
         }
 
+        /** 暴露全部迁移给测试使用（MigrationTest 在 JVM 上验证迁移正确性） */
+        internal fun migrations(): Array<Migration> =
+            arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+
         @Volatile
         private var INSTANCE: TodoDatabase? = null
 
