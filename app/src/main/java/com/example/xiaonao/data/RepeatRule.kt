@@ -1,5 +1,7 @@
 package com.example.xiaonao.data
 
+import androidx.annotation.StringRes
+import com.example.xiaonao.R
 import java.util.Calendar
 
 /**
@@ -11,11 +13,11 @@ import java.util.Calendar
  *
  * 存进数据库用的是 name（字符串）。
  */
-enum class RepeatRule(val label: String) {
-    NONE("不重复"),
-    DAILY("每天"),
-    WEEKLY("每周"),
-    MONTHLY("每月");
+enum class RepeatRule(@StringRes val labelRes: Int) {
+    NONE(R.string.repeat_none),
+    DAILY(R.string.repeat_daily),
+    WEEKLY(R.string.repeat_weekly),
+    MONTHLY(R.string.repeat_monthly);
 
     companion object {
         fun from(name: String?): RepeatRule =

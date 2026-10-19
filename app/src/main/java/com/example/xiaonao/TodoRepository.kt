@@ -3,6 +3,7 @@ package com.example.xiaonao
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import com.example.xiaonao.R
 import com.example.xiaonao.data.Category
 import com.example.xiaonao.data.RepeatRule
 import com.example.xiaonao.data.Todo
@@ -175,17 +176,17 @@ class TodoRepository(private val context: Context, private val dao: TodoDao) {
             val all = dao.getAll()
             val active = all.filter { !it.done }
             val done = all.filter { it.done }
-            val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA).format(System.currentTimeMillis())
+            val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(System.currentTimeMillis())
             val sb = StringBuilder()
-            sb.appendLine("小脑 · 待办清单")
-            sb.appendLine("导出时间：$ts")
-            sb.appendLine("共 ${all.size} 条（未完成 ${active.size} · 已完成 ${done.size}）")
+            sb.appendLine(ctx.getString(R.string.export_title))
+            sb.appendLine(ctx.getString(R.string.export_time, ts))
+            sb.appendLine(ctx.getString(R.string.export_summary, all.size, active.size, done.size))
             sb.appendLine()
-            sb.appendLine("【未完成】")
-            if (active.isEmpty()) sb.appendLine("（无）") else active.forEach { sb.appendLine(formatLine(it)) }
+            sb.appendLine(ctx.getString(R.string.export_active_header))
+            if (active.isEmpty()) sb.appendLine(ctx.getString(R.string.export_none)) else active.forEach { sb.appendLine(formatLine(it)) }
             sb.appendLine()
-            sb.appendLine("【已完成】")
-            if (done.isEmpty()) sb.appendLine("（无）") else done.forEach { sb.appendLine(formatLine(it)) }
+            sb.appendLine(ctx.getString(R.string.export_done_header))
+            if (done.isEmpty()) sb.appendLine(ctx.getString(R.string.export_none)) else done.forEach { sb.appendLine(formatLine(it)) }
 
             val dir = ctx.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
                 ?: ctx.getExternalFilesDir(null) ?: return null
@@ -202,12 +203,12 @@ class TodoRepository(private val context: Context, private val dao: TodoDao) {
     /** 把一条待办格式化成清单里的一行 */
     private fun formatLine(t: Todo): String {
         val pin = if (t.pinned) "📌" else "  "
-        val cat = if (t.category == Category.NONE.name) "" else " (${Category.from(t.category).label})"
+        val cat = if (t.category == Category.NONE.name) "" else " (${context.getString(Category.from(t.category).labelRes)})"
         val rep = if (t.repeat == RepeatRule.NONE.name) ""
-                  else " 🔁${RepeatRule.from(t.repeat).label}"
+                  else " 🔁${context.getString(RepeatRule.from(t.repeat).labelRes)}"
         val due = if (t.dueDate != null)
-            " 到期 ${SimpleDateFormat("MM-dd", Locale.CHINA).format(t.dueDate)}" else ""
-        val note = if (t.note.isBlank()) "" else "\n    备注：${t.note}"
+            context.getString(R.string.export_due, SimpleDateFormat("MM-dd", Locale.getDefault()).format(t.dueDate)) else ""
+        val note = if (t.note.isBlank()) "" else context.getString(R.string.export_note, t.note)
         return "$pin ${t.title}$cat$due$rep$note"
     }
 

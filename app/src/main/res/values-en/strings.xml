@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Little Brain</string>
+    <string name="add_todo_hint">Add a todo…</string>
+    <string name="empty_hint">No todos yet — add one!</string>
+    <string name="add">Add</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="quick_add_title">Add Todo</string>
+    <string name="widget_add_hint">Tap here to jot a todo</string>
+    <string name="clear_done">Clear Done</string>
+
+    <!-- Notifications (due reminders) -->
+    <string name="notif_channel_name">Todo Reminders</string>
+    <string name="notif_channel_desc">Notifications when todos are due</string>
+    <string name="notif_title">⏰ Todo Reminder</string>
+
+    <!-- Categories -->
+    <string name="cat_none">None</string>
+    <string name="cat_work">Work</string>
+    <string name="cat_study">Study</string>
+    <string name="cat_life">Life</string>
+
+    <!-- Repeat rules -->
+    <string name="repeat_none">No repeat</string>
+    <string name="repeat_daily">Daily</string>
+    <string name="repeat_weekly">Weekly</string>
+    <string name="repeat_monthly">Monthly</string>
+
+    <!-- Due -->
+    <string name="due_none">No due date</string>
+    <string name="due_set">Set due date</string>
+    <string name="due_clear">Clear due date</string>
+
+    <!-- Widget empty state -->
+    <string name="widget_empty">No todos yet\nTap \"+\" above to add your first</string>
+
+    <!-- ============ Main screen ============ -->
+    <string name="app_title">Little Brain</string>
+    <string name="btn_add_widget">+ Widget</string>
+    <string name="menu_export">Export Backup</string>
+    <string name="menu_import">Import Backup</string>
+    <string name="menu_batch_import">Batch Import</string>
+    <string name="menu_widget_settings">Widget Settings</string>
+    <string name="menu_export_text">Export List</string>
+    <string name="menu_check_update">Check Update</string>
+    <string name="menu_about">About</string>
+    <string name="tab_list">List</string>
+    <string name="tab_timeline">Timeline</string>
+    <string name="tab_stats">Stats</string>
+    <string name="tab_trash">Trash</string>
+    <string name="search_hint">Search todos…</string>
+    <string name="search_placeholder">Search todos</string>
+    <string name="filter_label">Filter: </string>
+    <string name="chip_all">All</string>
+    <string name="empty_no_match">No todos matching \"%1$s\"</string>
+    <string name="empty_no_category">No todos in \"%1$s\"</string>
+    <string name="swipe_delete">Delete</string>
+    <string name="toast_moved_to_trash">Moved to trash: \"%1$s\"</string>
+    <string name="action_undo">Undo</string>
+    <string name="toast_latest_version">Already up to date</string>
+    <string name="toast_exported">Exported: %1$s</string>
+    <string name="toast_export_failed_detail">Export failed: %1$s</string>
+    <string name="toast_export_failed">Export failed</string>
+    <string name="chooser_share_backup">Share backup file</string>
+    <string name="chooser_share_list">Share todo list</string>
+    <string name="toast_imported">Imported %1$d todos</string>
+    <string name="toast_widget_saved">Widget settings saved</string>
+    <string name="toast_need_install_permission">Please enable \"Install unknown apps\" in Settings first</string>
+    <string name="toast_update_cancelled">Update cancelled</string>
+    <string name="btn_update_now">Update Now</string>
+    <string name="btn_later">Later</string>
+    <string name="dlg_update_title">New version v%1$s</string>
+    <string name="dlg_update_text">A new version is available. Update now?</string>
+    <string name="dlg_downloading_title">Downloading update…</string>
+    <string name="dlg_downloading_probing">Testing sources for the fastest download…</string>
+    <string name="dlg_downloading_speed_mb">%1$d%% · %2$.1f MB/s</string>
+    <string name="dlg_downloading_speed_kb">%1$d%% · %2$d KB/s</string>
+    <string name="toast_download_failed">Download failed: %1$s</string>
+    <string name="dlg_delete_title">Delete this todo?</string>
+    <string name="dlg_delete_text">\"%1$s\" will be moved to trash. Tap \"Undo\" in the snackbar to restore; trash is auto-cleared after 30 days.</string>
+    <string name="toast_repeat_next">Done — rescheduled to %1$s</string>
+
+    <!-- ============ Category / repeat chips ============ -->
+    <string name="repeat_label">Repeat: </string>
+
+    <!-- ============ Due date row ============ -->
+    <string name="due_set_with_reminder">Set due date (with reminder)</string>
+    <string name="due_reminder_hint">⏰ You\'ll get a system notification when it\'s due</string>
+    <string name="due_with_date">🔔 Due: %1$s</string>
+    <string name="repeat_badge">🔁%1$s</string>
+
+    <!-- ============ Edit / add dialogs ============ -->
+    <string name="btn_save">Save</string>
+    <string name="dlg_edit_title">Edit Todo</string>
+    <string name="dlg_add_title">Add Todo</string>
+    <string name="field_content">Content</string>
+    <string name="field_note_optional">Note (optional)</string>
+    <string name="field_note_placeholder">Details, links, steps…</string>
+    <string name="add_placeholder">What to do today?</string>
+    <string name="hint_repeat_no_due">Tip: repeat is set but no due date — the next cycle will be calculated from today on first check.</string>
+    <string name="pin_label">Pin (show first)</string>
+
+    <!-- ============ Widget guide ============ -->
+    <string name="dlg_widget_guide_title">Add Home Widget</string>
+    <string name="dlg_widget_guide_text">One-tap add isn\'t supported on this launcher. Please add manually:\n\n1. Long-press an empty area of the home screen\n2. Choose \"Widgets\"\n3. Find \"Little Brain\" and drag it to the screen\n4. Tap \"+\" on the widget to quickly add a todo</string>
+    <string name="btn_got_it">Got it</string>
+
+    <!-- ============ Copy ============ -->
+    <string name="clip_label">Todo</string>
+    <string name="toast_copied">Copied: %1$s</string>
+
+    <!-- ============ Batch import ============ -->
+    <string name="btn_import">Import</string>
+    <string name="dlg_batch_import_title">Batch Import</string>
+    <string name="batch_import_hint">One per line — paste and create many todos at once.</string>
+    <string name="field_batch_content">Todo content (one per line)</string>
+
+    <!-- ============ Widget settings ============ -->
+    <string name="dlg_widget_settings_title">Widget Settings</string>
+    <string name="widget_settings_desc">Choose which category each home widget shows; the widget title includes the category name (e.g. \"Little Brain · Study\").</string>
+    <string name="widget_default_label">Default category for new widgets: </string>
+    <string name="widget_none_hint">You haven\'t added a home widget yet. Add one first (long-press home screen → Widgets → Little Brain), then come back to configure.</string>
+    <string name="widget_added_label">Added widgets (%1$d): </string>
+    <string name="widget_item_label">Widget %1$d</string>
+
+    <!-- ============ Timeline ============ -->
+    <string name="timeline_empty">No todos yet — add one in the \"List\" tab!</string>
+    <string name="timeline_unscheduled">Unscheduled</string>
+
+    <!-- ============ Stats ============ -->
+    <string name="stats_rate">Completion</string>
+    <string name="stats_total">%1$d total</string>
+    <string name="stats_done">%1$d done</string>
+    <string name="stats_active">%1$d active</string>
+    <string name="stats_overdue">%1$d overdue</string>
+    <string name="stats_by_category">By Category</string>
+
+    <!-- ============ Trash ============ -->
+    <string name="trash_title">Trash</string>
+    <string name="trash_count">%1$d items · auto-cleared after 30 days</string>
+    <string name="btn_clear">Clear</string>
+    <string name="trash_empty">Trash is empty</string>
+    <string name="trash_empty_hint">Deleted todos land here first — restore anytime</string>
+    <string name="trash_deleted_at">Deleted %1$s</string>
+    <string name="btn_restore">Restore</string>
+    <string name="btn_delete_forever">Delete Forever</string>
+    <string name="dlg_delete_forever_title">Delete forever?</string>
+    <string name="dlg_delete_forever_text">\"%1$s\" will be permanently deleted and cannot be recovered.</string>
+    <string name="btn_clear_all">Clear All</string>
+    <string name="dlg_clear_trash_title">Empty trash?</string>
+    <string name="dlg_clear_trash_text">%1$d todos in the trash will be permanently deleted and cannot be recovered.</string>
+
+    <!-- ============ About ============ -->
+    <string name="btn_close">Close</string>
+    <string name="about_title">Little Brain</string>
+    <string name="about_author_label">Author\'s GitHub</string>
+    <string name="about_author_link">@startime-ltk · tap to visit</string>
+    <string name="about_repo_label">Repository</string>
+    <string name="about_repo_link">github.com/startime-ltk/little-brian · tap to visit</string>
+    <string name="about_features_label">Features</string>
+    <string name="about_features_text">· Todos: add, check off, edit (✏️), delete (swipe to confirm), undo\n· Categories: None / Work / Study / Life, color-coded\n· Pin: long-press a todo to pin it — important things stay on top\n· Due reminders: set a due time and get a system notification (exact alarm, auto-rescheduled after reboot)\n· Repeating todos: daily / weekly / monthly auto-reschedule\n· Timeline: todos strung along a vertical line by due date\n· Completion stats: ring + per-category progress at a glance\n· Home widget: check off todos right from the desktop, one-tap create\n· Search &amp; filter: find by keyword or category\n· Backup &amp; restore: export / import JSON backups, batch-import multi-line text\n· In-app update: one tap to upgrade when a new version is found</string>
+    <string name="about_usage_label">How to Use</string>
+    <string name="about_usage_text">1. Add a todo: tap the round \"+\" button at bottom right; or use the widget\'s \"+\" to jot one down\n2. Complete: tap the checkbox on the left; repeating todos auto-reschedule to the next cycle\n3. Edit / delete: tap \"✏️\" to edit; swipe left to reveal the delete button, then confirm\n4. Category / due date: pick a category color and set a due date in the add or edit dialog (reminders fire automatically)\n5. Switch views: the \"List / Timeline / Stats\" tabs at the top\n6. Add a home widget: \"+ Widget\" in the app bar; or long-press home screen → Widgets → Little Brain\n7. Back up data: \"Export Backup\" in the menu saves JSON; \"Import Backup\" restores</string>
+    <string name="about_privacy">Fully offline · data stays on your phone · no network, no upload</string>
+    <string name="toast_open_url_failed">Can\'t open browser: %1$s</string>
+
+    <!-- ============ Accessibility (contentDescription) ============ -->
+    <string name="a11y_add_todo">Add todo</string>
+    <string name="a11y_edit">Edit this todo</string>
+    <string name="a11y_copy">Copy this todo</string>
+    <string name="a11y_delete">Delete this todo</string>
+    <string name="a11y_search">Search todos</string>
+    <string name="a11y_clear_search">Clear search keyword</string>
+    <string name="a11y_more_menu">More menu</string>
+    <string name="a11y_pin_widget">Pin widget to home screen</string>
+
+    <!-- ============ Quick add / export text / widget config ============ -->
+    <string name="due_prefix">Due: %1$s</string>
+    <string name="export_title">Little Brain · Todo List</string>
+    <string name="export_time">Exported: %1$s</string>
+    <string name="export_summary">%1$d total (%2$d active · %3$d done)</string>
+    <string name="export_active_header">[Active]</string>
+    <string name="export_done_header">[Done]</string>
+    <string name="export_none">(none)</string>
+    <string name="export_due"> Due %1$s</string>
+    <string name="export_note">\n    Note: %1$s</string>
+    <string name="widget_config_title">Which todos should this widget show?</string>
+    <string name="widget_config_desc">The widget will only show the selected category; todos in it can be adjusted in the app anytime.</string>
+    <string name="btn_done">Done</string>
+</resources>

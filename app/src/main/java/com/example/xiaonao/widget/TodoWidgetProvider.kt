@@ -37,7 +37,7 @@ class TodoWidgetProvider : android.appwidget.AppWidgetProvider() {
                 val filter = WidgetConfigActivity.filterOf(context, appWidgetId)
                 val titleText =
                     if (filter == WidgetConfigActivity.FILTER_ALL) context.getString(R.string.app_name)
-                    else "${context.getString(R.string.app_name)} · ${com.example.xiaonao.data.Category.from(filter).label}"
+                    else "${context.getString(R.string.app_name)} · ${context.getString(com.example.xiaonao.data.Category.from(filter).labelRes)}"
                 views.setTextViewText(R.id.widget_title, titleText)
 
                 // 1) 列表数据交给 RemoteViewsService（支持滚动）

@@ -17,6 +17,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
+import com.example.xiaonao.R
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,14 +87,14 @@ class WidgetConfigActivity : ComponentActivity() {
                         Modifier.padding(24.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("这个小组件显示哪些待办？", style = MaterialTheme.typography.titleLarge)
+                        Text(stringResource(R.string.widget_config_title), style = MaterialTheme.typography.titleLarge)
                         Text(
-                            "选好后桌面小组件只展示对应分类；分类下的待办可在 App 里随时调整。",
+                            stringResource(R.string.widget_config_desc),
                             style = MaterialTheme.typography.bodyMedium
                         )
 
-                        val options = listOf(FILTER_ALL to "全部") +
-                                Category.all.filter { it != Category.NONE }.map { it.name to it.label }
+                        val options = listOf(FILTER_ALL to stringResource(R.string.chip_all)) +
+                                Category.all.filter { it != Category.NONE }.map { it.name to getString(it.labelRes) }
 
                         options.forEach { (key, label) ->
                             FilterChip(
@@ -119,7 +121,7 @@ class WidgetConfigActivity : ComponentActivity() {
                                 setResult(RESULT_OK, result)
                                 finish()
                             }
-                        ) { Text("完成") }
+                        ) { Text(stringResource(R.string.btn_done)) }
                     }
                 }
             }

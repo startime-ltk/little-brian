@@ -62,7 +62,7 @@ class QuickAddActivity : ComponentActivity() {
         refreshCatUi()
 
         fun refreshDueUi() {
-            dueBtn.text = if (dueDate != null) "到期：" + formatDate(dueDate!!) else getString(R.string.due_none)
+            dueBtn.text = if (dueDate != null) getString(R.string.due_prefix, formatDate(dueDate!!)) else getString(R.string.due_none)
         }
         dueBtn.setOnClickListener {
             val cal = Calendar.getInstance().apply { dueDate?.let { t -> timeInMillis = t } }

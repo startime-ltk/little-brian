@@ -108,6 +108,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.roundToInt
@@ -138,6 +141,9 @@ import java.util.Locale
 /**
  * 主界面：Compose 写的极简待办列表。
  * 支持：添加、勾选、删除、滑动删除+撤销、编辑、分类筛选、搜索、置顶、导出/导入备份。
+ *
+ * 国际化：所有用户可见文案走 strings.xml（values 中文 / values-en 英文），
+ * 跟随系统语言自动切换；日期格式同样跟随系统 Locale。
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -191,7 +197,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     var openItemId by remember { mutableStateOf<Long?>(null) }
     // 点了滑出的「删除」按钮、等待确认的那条待办（非 null 时弹确认框）
     var pendingDelete by remember { mutableStateOf<Todo?>(null) }
-    // 底部视图切换：0=列表 1=时间轴 2=统计
+    // 底部视图切换：0=列表 1=时间轴 2=统计 3=回收站
     var tab by remember { mutableStateOf(0) }
     // 应用内更新相关状态
     var updateInfo by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
@@ -209,8 +215,8 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
         openItemId = null
         scope.launch {
             val res = snackbarHostState.showSnackbar(
-                message = "已移入回收站「${todo.title}」",
-                actionLabel = "撤销",
+                message = context.getString(R.string.toast_moved_to_trash, todo.title),
+                actionLabel = context.getString(R.string.action_undo),
                 duration = SnackbarDuration.Short
             )
             if (res == SnackbarResult.ActionPerformed) {
@@ -227,7 +233,11 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
             if (AppUpdater.hasUpdate(info)) {
                 updateInfo = info
             } else if (manual) {
-                Toast.makeText(context, "已是最新版本", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.toast_latest_version),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -250,13 +260,27 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                     putExtra(Intent.EXTRA_STREAM, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(Intent.createChooser(intent, "分享备份文件"))
-                Toast.makeText(context, "已导出：${file.name}", Toast.LENGTH_SHORT).show()
+                context.startActivity(
+                    Intent.createChooser(intent, context.getString(R.string.chooser_share_backup))
+                )
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.toast_exported, file.name),
+                    Toast.LENGTH_SHORT
+                ).show()
             } catch (e: Exception) {
-                Toast.makeText(context, "导出失败：${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.toast_export_failed_detail, e.message ?: ""),
+                    Toast.LENGTH_LONG
+                ).show()
             }
         } else {
-            Toast.makeText(context, "导出失败", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.toast_export_failed),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -266,7 +290,11 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     ) { uri: Uri? ->
         if (uri != null) {
             vm.import(context, uri) { n ->
-                Toast.makeText(context, "已导入 $n 条待办", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.toast_imported, n),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         }
     }
@@ -299,7 +327,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "小脑",
+                                stringResource(R.string.app_title),
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -307,10 +335,10 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                     },
                     actions = {
                         TextButton(onClick = { tryAddWidgetToHome(context) }) {
-                            Text("＋桌面")
+                            Text(stringResource(R.string.btn_add_widget))
                         }
                         TextButton(onClick = { vm.clearDone() }) {
-                            Text("清空已完成")
+                            Text(stringResource(R.string.clear_done))
                         }
                         Box {
                             IconButton(onClick = { menuExpanded = true }) {
@@ -321,35 +349,35 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                 onDismissRequest = { menuExpanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("导出备份") },
+                                    text = { Text(stringResource(R.string.menu_export)) },
                                     onClick = {
                                         menuExpanded = false
                                         vm.export(context, exportFile)
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("导入备份") },
+                                    text = { Text(stringResource(R.string.menu_import)) },
                                     onClick = {
                                         menuExpanded = false
                                         importLauncher.launch(arrayOf("application/json"))
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("批量导入") },
+                                    text = { Text(stringResource(R.string.menu_batch_import)) },
                                     onClick = {
                                         menuExpanded = false
                                         batchImportOpen = true
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("小组件设置") },
+                                    text = { Text(stringResource(R.string.menu_widget_settings)) },
                                     onClick = {
                                         menuExpanded = false
                                         widgetSettingsOpen = true
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("导出列表") },
+                                    text = { Text(stringResource(R.string.menu_export_text)) },
                                     onClick = {
                                         menuExpanded = false
                                         vm.exportText(context) { file ->
@@ -363,25 +391,41 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                                         putExtra(Intent.EXTRA_STREAM, uri)
                                                         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                     }
-                                                    context.startActivity(Intent.createChooser(intent, "分享待办清单"))
+                                                    context.startActivity(
+                                                        Intent.createChooser(
+                                                            intent,
+                                                            context.getString(R.string.chooser_share_list)
+                                                        )
+                                                    )
                                                 } catch (e: Exception) {
-                                                    Toast.makeText(context, "导出失败：${e.message}", Toast.LENGTH_LONG).show()
+                                                    Toast.makeText(
+                                                        context,
+                                                        context.getString(
+                                                            R.string.toast_export_failed_detail,
+                                                            e.message ?: ""
+                                                        ),
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
                                                 }
                                             } else {
-                                                Toast.makeText(context, "导出失败", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.toast_export_failed),
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
                                             }
                                         }
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("检查更新") },
+                                    text = { Text(stringResource(R.string.menu_check_update)) },
                                     onClick = {
                                         menuExpanded = false
                                         checkForUpdate(manual = true)
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("关于") },
+                                    text = { Text(stringResource(R.string.menu_about)) },
                                     onClick = {
                                         menuExpanded = false
                                         aboutOpen = true
@@ -393,10 +437,12 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 )
             },
             floatingActionButton = {
+                val addFabDesc = stringResource(R.string.a11y_add_todo)
                 FloatingActionButton(
                     onClick = { addOpen = true },
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
+                    contentColor = Color.White,
+                    modifier = Modifier.semantics { contentDescription = addFabDesc }
                 ) {
                     Text("＋", fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 }
@@ -424,7 +470,12 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 SegmentedTabs(
                     selected = tab,
                     onSelect = { tab = it },
-                    tabs = listOf("列表", "时间轴", "统计", "回收站")
+                    tabs = listOf(
+                        stringResource(R.string.tab_list),
+                        stringResource(R.string.tab_timeline),
+                        stringResource(R.string.tab_stats),
+                        stringResource(R.string.tab_trash)
+                    )
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -437,12 +488,14 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                             value = query,
                             onValueChange = { query = it },
                             modifier = Modifier.weight(1f),
-                            placeholder = { Text("搜索待办…") },
+                            placeholder = { Text(stringResource(R.string.search_hint)) },
                             singleLine = true,
                             leadingIcon = { Text("🔍", fontSize = 18.sp) },
                             trailingIcon = {
                                 if (query.isNotBlank())
-                                    IconButton(onClick = { query = "" }) { Text("✕", fontSize = 16.sp) }
+                                    IconButton(onClick = { query = "" }) {
+                                        Text("✕", fontSize = 16.sp)
+                                    }
                             }
                         )
                         IconButton(onClick = { searchActive = false; query = "" }) {
@@ -463,7 +516,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                 Text("🔍", fontSize = 18.sp)
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    "搜索待办",
+                                    stringResource(R.string.search_placeholder),
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 14.sp
                                 )
@@ -480,17 +533,17 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("筛选：", fontSize = 13.sp, color = Color.Gray)
+                    Text(stringResource(R.string.filter_label), fontSize = 13.sp, color = Color.Gray)
                     FilterChip(
                         selected = filterCategory == Category.NONE,
                         onClick = { filterCategory = Category.NONE },
-                        label = { Text("全部") }
+                        label = { Text(stringResource(R.string.chip_all)) }
                     )
                     Category.all.drop(1).forEach { cat ->
                         FilterChip(
                             selected = filterCategory == cat,
                             onClick = { filterCategory = cat },
-                            label = { Text(cat.label) }
+                            label = { Text(stringResource(cat.labelRes)) }
                         )
                     }
                 }
@@ -499,9 +552,12 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
 
                 if (shown.isEmpty()) {
                     val tip = when {
-                        todos.isEmpty() -> "还没有待办，添加一个吧～"
-                        query.isNotBlank() -> "没有匹配「$query」的待办"
-                        else -> "「${filterCategory.label}」分类下暂无待办"
+                        todos.isEmpty() -> stringResource(R.string.empty_hint)
+                        query.isNotBlank() -> stringResource(R.string.empty_no_match, query)
+                        else -> stringResource(
+                            R.string.empty_no_category,
+                            stringResource(filterCategory.labelRes)
+                        )
                     }
                     val icon = when {
                         todos.isEmpty() -> "🌱"
@@ -598,7 +654,11 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                     ) {
                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                             Text("🗑", fontSize = 20.sp)
-                                            Text("删除", color = Color.White, fontSize = 12.sp)
+                                            Text(
+                                                stringResource(R.string.swipe_delete),
+                                                color = Color.White,
+                                                fontSize = 12.sp
+                                            )
                                         }
                                     }
                                 }
@@ -611,7 +671,10 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                     vm.toggle(todo.id) { next ->
                                         Toast.makeText(
                                             context,
-                                            "已完成，顺延至 ${formatDate(next)}",
+                                            context.getString(
+                                                R.string.toast_repeat_next,
+                                                formatDate(next)
+                                            ),
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
@@ -651,17 +714,22 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                         pendingDelete = null
                         openItemId = null
                         onDelete(todo)
-                    }) { Text("删除", color = Color(0xFFE53935)) }
+                    }) {
+                        Text(
+                            stringResource(R.string.delete),
+                            color = Color(0xFFE53935)
+                        )
+                    }
                 },
                 dismissButton = {
                     TextButton(onClick = {
                         pendingDelete = null
                         openItemId = null
-                    }) { Text("取消") }
+                    }) { Text(stringResource(R.string.cancel)) }
                 },
-                title = { Text("删除这条待办？") },
+                title = { Text(stringResource(R.string.dlg_delete_title)) },
                 text = {
-                    Text("「${todo.title}」将移入回收站，删完可在底部提示里点「撤销」恢复；回收站内容 30 天后自动清理。")
+                    Text(stringResource(R.string.dlg_delete_text, todo.title))
                 }
             )
         }
@@ -697,7 +765,11 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                     val n = lines.map { it.trim() }.count { it.isNotBlank() }
                     vm.batchAdd(lines, cat, rep)
                     batchImportOpen = false
-                    Toast.makeText(context, "已导入 $n 条待办", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.toast_imported, n),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             )
         }
@@ -708,7 +780,11 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 onDismiss = { widgetSettingsOpen = false },
                 onSaved = {
                     widgetSettingsOpen = false
-                    Toast.makeText(context, "小组件设置已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.toast_widget_saved),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             )
         }
@@ -734,7 +810,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                             if (!AppUpdater.canInstallPackages(context)) {
                                 Toast.makeText(
                                     context,
-                                    "请先在设置里开启「允许安装未知应用」",
+                                    context.getString(R.string.toast_need_install_permission),
                                     Toast.LENGTH_LONG
                                 ).show()
                                 AppUpdater.openInstallSettings(context)
@@ -757,25 +833,34 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                                 AppUpdater.installApk(context, file)
                             } catch (e: kotlinx.coroutines.CancellationException) {
                                 updating = false
-                                Toast.makeText(context, "已取消更新", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.toast_update_cancelled),
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             } catch (e: Exception) {
                                 updating = false
                                 Toast.makeText(
                                     context,
-                                    "下载失败：${e.message}",
+                                    context.getString(
+                                        R.string.toast_download_failed,
+                                        e.message ?: ""
+                                    ),
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
                         }
-                    }) { Text("立即更新") }
+                    }) { Text(stringResource(R.string.btn_update_now)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { updateInfo = null }) { Text("稍后") }
+                    TextButton(onClick = { updateInfo = null }) {
+                        Text(stringResource(R.string.btn_later))
+                    }
                 },
-                title = { Text("发现新版本 v${info.versionName}") },
+                title = { Text(stringResource(R.string.dlg_update_title, info.versionName)) },
                 text = {
                     if (info.note.isNotBlank()) Text(info.note)
-                    else Text("有新版本可用，是否现在更新？")
+                    else Text(stringResource(R.string.dlg_update_text))
                 }
             )
         }
@@ -788,20 +873,28 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                     TextButton(onClick = {
                         downloadJob?.cancel()
                         updating = false
-                    }) { Text("取消") }
+                    }) { Text(stringResource(R.string.cancel)) }
                 },
-                title = { Text("正在下载更新…") },
+                title = { Text(stringResource(R.string.dlg_downloading_title)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         LinearProgressIndicator(progress = { downloadProgress / 100f })
                         Text(
                             when {
                                 downloadProgress == 0 ->
-                                    "正在测速选择最快下载源…"
+                                    stringResource(R.string.dlg_downloading_probing)
                                 downloadSpeed >= 1024 ->
-                                    "${downloadProgress}% · %.1f MB/s".format(downloadSpeed / 1024.0)
+                                    stringResource(
+                                        R.string.dlg_downloading_speed_mb,
+                                        downloadProgress,
+                                        downloadSpeed / 1024.0
+                                    )
                                 else ->
-                                    "${downloadProgress}% · ${downloadSpeed} KB/s"
+                                    stringResource(
+                                        R.string.dlg_downloading_speed_kb,
+                                        downloadProgress,
+                                        downloadSpeed
+                                    )
                             },
                             fontSize = 13.sp,
                             color = Color.Gray
@@ -821,7 +914,7 @@ fun CategoryChips(selected: Category, onSelect: (Category) -> Unit) {
             FilterChip(
                 selected = selected == cat,
                 onClick = { onSelect(cat) },
-                label = { Text(cat.label) }
+                label = { Text(stringResource(cat.labelRes)) }
             )
         }
     }
@@ -834,12 +927,12 @@ fun RepeatChips(selected: RepeatRule, onSelect: (RepeatRule) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("重复：", fontSize = 13.sp, color = Color.Gray)
+        Text(stringResource(R.string.repeat_label), fontSize = 13.sp, color = Color.Gray)
         RepeatRule.all.forEach { rule ->
             FilterChip(
                 selected = selected == rule,
                 onClick = { onSelect(rule) },
-                label = { Text(rule.label) }
+                label = { Text(stringResource(rule.labelRes)) }
             )
         }
     }
@@ -918,13 +1011,16 @@ fun DueDateRow(dueDate: Long?, onPick: (Long?) -> Unit) {
                 cal.get(Calendar.DAY_OF_MONTH)
             ).show()
         }) {
-            Text(if (dueDate != null) "🔔 到期：${formatDate(dueDate)}" else "设置到期（到点提醒）")
+            Text(
+                if (dueDate != null) stringResource(R.string.due_with_date, formatDate(dueDate))
+                else stringResource(R.string.due_set_with_reminder)
+            )
         }
         if (dueDate != null) {
             Spacer(Modifier.width(8.dp))
-            TextButton(onClick = { onPick(null) }) { Text("清除") }
+            TextButton(onClick = { onPick(null) }) { Text(stringResource(R.string.due_clear)) }
             Text(
-                "⏰ 到点会通过系统通知提醒你",
+                stringResource(R.string.due_reminder_hint),
                 fontSize = 11.sp,
                 color = Color.Gray,
                 modifier = Modifier.padding(start = 4.dp)
@@ -1023,7 +1119,7 @@ fun TodoRow(
             val rule = RepeatRule.from(todo.repeat)
             if (rule != RepeatRule.NONE) {
                 Text(
-                    "🔁${rule.label}",
+                    stringResource(R.string.repeat_badge, stringResource(rule.labelRes)),
                     Modifier.padding(start = 8.dp),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1031,17 +1127,24 @@ fun TodoRow(
             }
 
             // 编辑按钮：点一下直接改这条（不用靠「点整行」才发现能编辑）
+            val editDesc = stringResource(R.string.a11y_edit)
             IconButton(
                 onClick = onEdit,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier
+                    .size(40.dp)
+                    .semantics { contentDescription = editDesc }
             ) {
                 Text("✏️", fontSize = 18.sp)
             }
 
             // 复制按钮：点一下把这条标题复制到剪贴板
+            val copyDesc = stringResource(R.string.a11y_copy)
             IconButton(
                 onClick = onCopy,
-                modifier = Modifier.size(40.dp).padding(start = 4.dp)
+                modifier = Modifier
+                    .size(40.dp)
+                    .padding(start = 4.dp)
+                    .semantics { contentDescription = copyDesc }
             ) {
                 Text("📋", fontSize = 18.sp)
             }
@@ -1073,26 +1176,26 @@ fun EditTodoDialog(todo: Todo, onDismiss: () -> Unit, onSave: (Todo) -> Unit) {
                         pinned = pinned
                     )
                 )
-            }) { Text("保存") }
+            }) { Text(stringResource(R.string.btn_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
-        title = { Text("编辑待办") },
+        title = { Text(stringResource(R.string.dlg_edit_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("内容") },
+                    label = { Text(stringResource(R.string.field_content)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = { Text("备注（可选）") },
-                    placeholder = { Text("补充说明、链接、步骤…") },
+                    label = { Text(stringResource(R.string.field_note_optional)) },
+                    placeholder = { Text(stringResource(R.string.field_note_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     singleLine = false
@@ -1102,14 +1205,14 @@ fun EditTodoDialog(todo: Todo, onDismiss: () -> Unit, onSave: (Todo) -> Unit) {
                 RepeatChips(selected = repeat, onSelect = { repeat = it })
                 if (repeat != RepeatRule.NONE && dueDate == null) {
                     Text(
-                        "提示：设了重复但没设到期时间，首次勾选后会按「今天」推算下一周期。",
+                        stringResource(R.string.hint_repeat_no_due),
                         fontSize = 12.sp,
                         color = Color.Gray
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = pinned, onCheckedChange = { pinned = it })
-                    Text("置顶（排在最前）")
+                    Text(stringResource(R.string.pin_label))
                 }
             }
         }
@@ -1139,25 +1242,25 @@ fun AddTodoDialog(
                 onClick = {
                     onAdd(title.trim(), category, dueDate, repeat, note.trim())
                 }
-            ) { Text("添加") }
+            ) { Text(stringResource(R.string.add)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-        title = { Text("添加待办") },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        title = { Text(stringResource(R.string.dlg_add_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("内容") },
-                    placeholder = { Text("今天要做什么？") },
+                    label = { Text(stringResource(R.string.field_content)) },
+                    placeholder = { Text(stringResource(R.string.add_placeholder)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    label = { Text("备注（可选）") },
-                    placeholder = { Text("补充说明、链接、步骤…") },
+                    label = { Text(stringResource(R.string.field_note_optional)) },
+                    placeholder = { Text(stringResource(R.string.field_note_placeholder)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     singleLine = false
@@ -1171,7 +1274,7 @@ fun AddTodoDialog(
 }
 
 fun formatDate(ts: Long): String {
-    return SimpleDateFormat("MM-dd", Locale.CHINA).format(ts)
+    return SimpleDateFormat("MM-dd", Locale.getDefault()).format(ts)
 }
 
 /**
@@ -1188,15 +1291,9 @@ fun tryAddWidgetToHome(context: Context) {
     // 不支持 pinning、或 pinning 被静默忽略时，展示手动添加引导
     fun showGuide() {
         AlertDialog.Builder(context)
-            .setTitle("添加桌面小组件")
-            .setMessage(
-                "当前桌面暂不支持一键添加，请手动操作：\n\n" +
-                "1. 长按手机桌面空白处\n" +
-                "2. 选「小组件 / 微件」\n" +
-                "3. 找到「小脑」拖到桌面\n" +
-                "4. 在桌面点小组件里的 ＋ 即可快速记待办"
-            )
-            .setPositiveButton("知道了", null)
+            .setTitle(context.getString(R.string.dlg_widget_guide_title))
+            .setMessage(context.getString(R.string.dlg_widget_guide_text))
+            .setPositiveButton(context.getString(R.string.btn_got_it), null)
             .show()
     }
 
@@ -1248,8 +1345,12 @@ fun tryAddWidgetToHome(context: Context) {
 /** 复制一条待办的标题到系统剪贴板 */
 fun copyTodo(context: Context, text: String) {
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    cm.setPrimaryClip(ClipData.newPlainText("待办", text))
-    Toast.makeText(context, "已复制：$text", Toast.LENGTH_SHORT).show()
+    cm.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.clip_label), text))
+    Toast.makeText(
+        context,
+        context.getString(R.string.toast_copied, text),
+        Toast.LENGTH_SHORT
+    ).show()
 }
 
 /** 批量导入弹窗：粘贴多行文本（每行一条）+ 选分类，一键批量建待办 */
@@ -1263,17 +1364,21 @@ fun BatchImportDialog(onDismiss: () -> Unit, onImport: (List<String>, String, St
         confirmButton = {
             TextButton(onClick = {
                 onImport(text.split("\n", "\r\n"), category.name, repeat.name)
-            }) { Text("导入") }
+            }) { Text(stringResource(R.string.btn_import)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-        title = { Text("批量导入") },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        title = { Text(stringResource(R.string.dlg_batch_import_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("每行一条，粘贴后一键建多条待办。", fontSize = 13.sp, color = Color.Gray)
+                Text(
+                    stringResource(R.string.batch_import_hint),
+                    fontSize = 13.sp,
+                    color = Color.Gray
+                )
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    label = { Text("待办内容（每行一条）") },
+                    label = { Text(stringResource(R.string.field_batch_content)) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 5,
                     singleLine = false
@@ -1321,36 +1426,41 @@ fun WidgetSettingsDialog(onDismiss: () -> Unit, onSaved: () -> Unit) {
                 // 完整重绘：标题与列表都按新设置刷新
                 TodoWidgetProvider.refreshAll(context)
                 onSaved()
-            }) { Text("保存") }
+            }) { Text(stringResource(R.string.btn_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-        title = { Text("小组件设置") },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        title = { Text(stringResource(R.string.dlg_widget_settings_title)) },
         text = {
             Column(
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "设置每个桌面小组件显示哪一类待办；组件标题会带上分类名（如「小脑 · 学习」）。",
+                    stringResource(R.string.widget_settings_desc),
                     fontSize = 13.sp,
                     color = Color.Gray
                 )
 
-                Text("新添加的小组件默认显示：", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.widget_default_label), fontWeight = FontWeight.Bold)
                 WidgetFilterChips(selected = defaultFilter, onSelect = { defaultFilter = it })
 
                 if (ids.isEmpty()) {
                     Text(
-                        "你还没有添加桌面小组件。先在桌面添加一个" +
-                            "（长按桌面 → 小组件 → 小脑），再来这里设置。",
+                        stringResource(R.string.widget_none_hint),
                         fontSize = 13.sp,
                         color = Color.Gray
                     )
                 } else {
-                    Text("已添加的组件（${ids.size}）：", fontWeight = FontWeight.Bold)
+                    Text(
+                        stringResource(R.string.widget_added_label, ids.size),
+                        fontWeight = FontWeight.Bold
+                    )
                     ids.forEachIndexed { index, id ->
                         Column {
-                            Text("小组件 ${index + 1}", fontSize = 13.sp)
+                            Text(
+                                stringResource(R.string.widget_item_label, index + 1),
+                                fontSize = 13.sp
+                            )
                             WidgetFilterChips(
                                 selected = perWidget[id] ?: WidgetConfigActivity.FILTER_ALL,
                                 onSelect = { perWidget[id] = it }
@@ -1370,14 +1480,14 @@ fun WidgetFilterChips(selected: String, onSelect: (String) -> Unit) {
         FilterChip(
             selected = selected == WidgetConfigActivity.FILTER_ALL,
             onClick = { onSelect(WidgetConfigActivity.FILTER_ALL) },
-            label = { Text("全部") }
+            label = { Text(stringResource(R.string.chip_all)) }
         )
         // drop(1)：去掉「无」分类——它在 App 内已被当作「全部」的语义，单独筛它没有意义
         Category.all.drop(1).forEach { cat ->
             FilterChip(
                 selected = selected == cat.name,
                 onClick = { onSelect(cat.name) },
-                label = { Text(cat.label) }
+                label = { Text(stringResource(cat.labelRes)) }
             )
         }
     }
@@ -1405,22 +1515,27 @@ fun TimelineView(todos: List<Todo>, onEdit: (Todo) -> Unit) {
                 Text("🗓️", fontSize = 40.sp)
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "还没有待办，去「列表」添加一条吧～",
+                    stringResource(R.string.timeline_empty),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
         return
     }
-    val fmtDay = SimpleDateFormat("M月d日", Locale.CHINA)
-    val fmtWeek = SimpleDateFormat("EEEE", Locale.CHINA)
+    // 日期格式跟随系统语言：中文「10月19日」，英文「Oct 19」
+    val isZh = Locale.getDefault().language.startsWith("zh")
+    val fmtDay = if (isZh) SimpleDateFormat("M月d日", Locale.CHINA)
+                 else SimpleDateFormat("MMM d", Locale.US)
+    val fmtWeek = SimpleDateFormat("EEEE", Locale.getDefault())
     val withDate = todos.filter { it.dueDate != null }.sortedByDescending { it.dueDate }
     val noDate = todos.filter { it.dueDate == null }
     val groups = withDate.groupBy { dayStart(it.dueDate!!) }
         .toSortedMap(compareByDescending { it })
         .map { (day, items) -> (Triple(day, fmtDay.format(day), fmtWeek.format(day)) to items) }
         .toMutableList()
-    if (noDate.isNotEmpty()) groups.add(Triple(-1L, "未排期", "") to noDate)
+    if (noDate.isNotEmpty()) {
+        groups.add(Triple(-1L, stringResource(R.string.timeline_unscheduled), "") to noDate)
+    }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -1493,7 +1608,7 @@ fun TimelineCard(todo: Todo, onEdit: (Todo) -> Unit) {
             val rule = RepeatRule.from(todo.repeat)
             if (rule != RepeatRule.NONE)
                 Text(
-                    "🔁${rule.label}",
+                    stringResource(R.string.repeat_badge, stringResource(rule.labelRes)),
                     Modifier.padding(start = 8.dp),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1573,20 +1688,27 @@ fun StatsView(todos: List<Todo>) {
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        Text("完成率", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            stringResource(R.string.stats_rate),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatLine("共 $totalAnim 条", MaterialTheme.colorScheme.onSurface)
-                    StatLine("已完成 $doneAnim 条", Color(0xFF3AA6A0))
-                    StatLine("待完成 $activeAnim 条", Color(0xFFF2994A))
+                    StatLine(stringResource(R.string.stats_total, totalAnim), MaterialTheme.colorScheme.onSurface)
+                    StatLine(stringResource(R.string.stats_done, doneAnim), Color(0xFF3AA6A0))
+                    StatLine(stringResource(R.string.stats_active, activeAnim), Color(0xFFF2994A))
                     if (overdueAnim > 0)
-                        StatLine("已逾期 $overdueAnim 条", MaterialTheme.colorScheme.error)
+                        StatLine(
+                            stringResource(R.string.stats_overdue, overdueAnim),
+                            MaterialTheme.colorScheme.error
+                        )
                 }
             }
         }
 
-        Text("分类完成情况", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        Text(stringResource(R.string.stats_by_category), fontWeight = FontWeight.Bold, fontSize = 15.sp)
         byCat.forEach { (cat, d, n) ->
             val r = if (n == 0) 0f else d.toFloat() / n
             val rAnim by animateFloatAsState(
@@ -1609,7 +1731,7 @@ fun StatsView(todos: List<Todo>) {
                     Box(Modifier.size(9.dp).background(colorResource(cat.colorRes), CircleShape))
                 }
                 Text(
-                    cat.label,
+                    stringResource(cat.labelRes),
                     Modifier.width(56.dp).padding(start = 8.dp),
                     fontSize = 13.sp
                 )
@@ -1659,16 +1781,16 @@ fun TrashView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text("回收站", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(stringResource(R.string.trash_title), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text(
-                    "共 ${trash.size} 条 · 保留 30 天后自动清理",
+                    stringResource(R.string.trash_count, trash.size),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (trash.isNotEmpty()) {
                 TextButton(onClick = { clearConfirm = true }) {
-                    Text("清空", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.btn_clear), color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -1697,13 +1819,13 @@ fun TrashView(
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "回收站是空的",
+                    stringResource(R.string.trash_empty),
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "删除的待办会先来这里，可随时恢复",
+                    stringResource(R.string.trash_empty_hint),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1744,15 +1866,23 @@ fun TrashView(
                                 )
                                 Spacer(Modifier.height(2.dp))
                                 Text(
-                                    "删除于 ${formatDateTime(todo.deletedAt ?: 0L)}",
+                                    stringResource(
+                                        R.string.trash_deleted_at,
+                                        formatDateTime(todo.deletedAt ?: 0L)
+                                    ),
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(Modifier.height(8.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick = { onRestore(todo) }) { Text("恢复") }
+                                    TextButton(onClick = { onRestore(todo) }) {
+                                        Text(stringResource(R.string.btn_restore))
+                                    }
                                     TextButton(onClick = { pendingForever = todo }) {
-                                        Text("彻底删除", color = MaterialTheme.colorScheme.error)
+                                        Text(
+                                            stringResource(R.string.btn_delete_forever),
+                                            color = MaterialTheme.colorScheme.error
+                                        )
                                     }
                                 }
                             }
@@ -1771,13 +1901,20 @@ fun TrashView(
                 TextButton(onClick = {
                     onDeleteForever(todo)
                     pendingForever = null
-                }) { Text("彻底删除", color = MaterialTheme.colorScheme.error) }
+                }) {
+                    Text(
+                        stringResource(R.string.btn_delete_forever),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { pendingForever = null }) { Text("取消") }
+                TextButton(onClick = { pendingForever = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
             },
-            title = { Text("彻底删除？") },
-            text = { Text("「${todo.title}」将永久删除，无法恢复。") }
+            title = { Text(stringResource(R.string.dlg_delete_forever_title)) },
+            text = { Text(stringResource(R.string.dlg_delete_forever_text, todo.title)) }
         )
     }
 
@@ -1789,20 +1926,27 @@ fun TrashView(
                 TextButton(onClick = {
                     onClearAll()
                     clearConfirm = false
-                }) { Text("全部清空", color = MaterialTheme.colorScheme.error) }
+                }) {
+                    Text(
+                        stringResource(R.string.btn_clear_all),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { clearConfirm = false }) { Text("取消") }
+                TextButton(onClick = { clearConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             },
-            title = { Text("清空回收站？") },
-            text = { Text("回收站内 ${trash.size} 条待办将被永久删除，无法恢复。") }
+            title = { Text(stringResource(R.string.dlg_clear_trash_title)) },
+            text = { Text(stringResource(R.string.dlg_clear_trash_text, trash.size)) }
         )
     }
 }
 
 /** 带时分的时间格式（回收站「删除于」用） */
 fun formatDateTime(ts: Long): String {
-    return SimpleDateFormat("MM-dd HH:mm", Locale.CHINA).format(ts)
+    return SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(ts)
 }
 
 /**
@@ -1821,24 +1965,28 @@ fun AboutDialog(onDismiss: () -> Unit, onCheckUpdate: () -> Unit) {
                 }
             )
         } catch (e: Exception) {
-            Toast.makeText(context, "打不开浏览器：${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.toast_open_url_failed, e.message ?: ""),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_close)) }
         },
         dismissButton = {
-            TextButton(onClick = onCheckUpdate) { Text("检查更新") }
+            TextButton(onClick = onCheckUpdate) { Text(stringResource(R.string.btn_check_update)) }
         },
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("🧠", fontSize = 22.sp)
                 Spacer(Modifier.width(8.dp))
                 Column {
-                    Text("小脑 Little Brain", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.about_title), fontWeight = FontWeight.Bold)
                     Text(
                         "v${AppUpdater.currentVersionName()}",
                         fontSize = 12.sp,
@@ -1856,23 +2004,23 @@ fun AboutDialog(onDismiss: () -> Unit, onCheckUpdate: () -> Unit) {
             ) {
                 // 作者主页
                 Text(
-                    "作者 GitHub 主页",
+                    stringResource(R.string.about_author_label),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
                 Text(
-                    "@startime-ltk  ·  点击访问",
+                    stringResource(R.string.about_author_link),
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable { openUrl(AppUpdater.GITHUB_HOME) }
                 )
                 Text(
-                    "项目仓库",
+                    stringResource(R.string.about_repo_label),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
                 Text(
-                    "github.com/startime-ltk/little-brian  ·  点击访问",
+                    stringResource(R.string.about_repo_link),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable { openUrl(AppUpdater.GITHUB_REPO) }
@@ -1881,21 +2029,13 @@ fun AboutDialog(onDismiss: () -> Unit, onCheckUpdate: () -> Unit) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // 功能介绍
-                Text("功能介绍", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
-                    """
-                    · 待办管理：添加、勾选完成、编辑（✏️）、删除（滑动确认）、撤销
-                    · 分类标签：无 / 工作 / 学习 / 生活，四色区分
-                    · 置顶：长按待办即可置顶，重要的事排最前
-                    · 到期提醒：设到期时间，到点通过系统通知提醒（精确闹钟，重启自动重排）
-                    · 重复待办：每天 / 每周 / 每月自动顺延
-                    · 日记时间轴：按到期日把待办串成竖向时间线
-                    · 完成率统计：圆环 + 分类进度，一眼看清进度
-                    · 桌面小组件：桌面上直接勾选完成，一键创建
-                    · 搜索与筛选：按关键字、按分类快速找
-                    · 备份恢复：导出 / 导入 JSON 备份，批量导入多行文本
-                    · 应用内更新：检查到新版本点一下即可升级
-                    """.trimIndent(),
+                    stringResource(R.string.about_features_label),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    stringResource(R.string.about_features_text),
                     fontSize = 13.sp,
                     lineHeight = 20.sp
                 )
@@ -1903,17 +2043,13 @@ fun AboutDialog(onDismiss: () -> Unit, onCheckUpdate: () -> Unit) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // 使用说明
-                Text("使用说明", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
-                    """
-                    1. 添加待办：点右下角圆形「＋」按钮弹出添加框；或用桌面小组件的「＋」直接记
-                    2. 完成：点左侧圆框勾选；周期待办勾选后自动顺延到下一周期
-                    3. 编辑 / 删除：点「✏️」进入编辑；左滑露出删除按钮，点击后确认删除
-                    4. 分类 / 到期：在添加或编辑框里选分类色、设到期日（设了就自动提醒）
-                    5. 视图切换：顶部「列表 / 时间轴 / 统计」三个标签自由切换
-                    6. 加桌面组件：App 顶栏「＋桌面」；或长按桌面 → 小组件 → 小脑
-                    7. 数据备份：菜单「导出备份」存 JSON，「导入备份」恢复
-                    """.trimIndent(),
+                    stringResource(R.string.about_usage_label),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    stringResource(R.string.about_usage_text),
                     fontSize = 13.sp,
                     lineHeight = 20.sp
                 )
@@ -1921,7 +2057,7 @@ fun AboutDialog(onDismiss: () -> Unit, onCheckUpdate: () -> Unit) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 Text(
-                    "纯本地离线应用 · 数据只存在你的手机上 · 不联网、不上传",
+                    stringResource(R.string.about_privacy),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
