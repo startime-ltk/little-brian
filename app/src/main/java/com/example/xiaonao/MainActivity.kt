@@ -1979,7 +1979,7 @@ fun AboutDialog(onDismiss: () -> Unit, onCheckUpdate: () -> Unit) {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.btn_close)) }
         },
         dismissButton = {
-            TextButton(onClick = onCheckUpdate) { Text(stringResource(R.string.btn_check_update)) }
+            TextButton(onClick = onCheckUpdate) { Text(stringResource(R.string.menu_check_update)) }
         },
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
