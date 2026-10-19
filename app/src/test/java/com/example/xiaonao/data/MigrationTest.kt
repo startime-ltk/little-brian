@@ -105,7 +105,7 @@ class MigrationTest {
                     "`done` INTEGER NOT NULL, " +
                     "`createdAt` INTEGER NOT NULL, " +
                     "`dueDate` INTEGER, " +
-                    "`category` TEXT NOT NULL, " +
+                    "`category` TEXT NOT NULL DEFAULT 'NONE', " +
                     "`pinned` INTEGER NOT NULL DEFAULT 0, " +
                     "`repeat` TEXT NOT NULL DEFAULT 'NONE', " +
                     "`note` TEXT NOT NULL DEFAULT '')",
@@ -124,7 +124,7 @@ class MigrationTest {
                     "`done` INTEGER NOT NULL, " +
                     "`createdAt` INTEGER NOT NULL, " +
                     "`dueDate` INTEGER, " +
-                    "`category` TEXT NOT NULL, " +
+                    "`category` TEXT NOT NULL DEFAULT 'NONE', " +
                     "`pinned` INTEGER NOT NULL DEFAULT 0, " +
                     "`repeat` TEXT NOT NULL DEFAULT 'NONE', " +
                     "`note` TEXT NOT NULL DEFAULT '', " +

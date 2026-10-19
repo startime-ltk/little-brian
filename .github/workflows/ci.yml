@@ -35,3 +35,11 @@ jobs:
           name: little-brain-debug
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
+
+      - name: 上传测试报告（失败时用于排查）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: app/build/reports/tests/testDebugUnitTest/
+          retention-days: 14
