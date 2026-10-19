@@ -2,8 +2,10 @@ package com.example.xiaonao.data
 
 import android.content.Context
 import androidx.room.Room
-import androidx.room.testing.MigrationTestHelper
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.SimpleSQLiteQuery
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.After
@@ -25,7 +27,10 @@ import org.robolectric.annotation.Config
  *     用当前代码打开必须不崩（v6→v7 修复迁移兜底），数据无损、id 不撞号
  *  3. v1→v7 全链路：最老版本的用户一路升级，数据必须无损
  *
- * 注意：测试里打开数据库时【故意不加】 fallbackToDestructiveMigration——
+ * 实现说明：老版本库用 FrameworkSQLiteOpenHelper 按历史 DDL 手工创建
+ * （不走 MigrationTestHelper——它要求 schema JSON 导出，本项目未开启），
+ * 再用 Room.databaseBuilder 打开触发迁移 + schema 校验。
+ * 注意：打开时【故意不加】 fallbackToDestructiveMigration——
  * 迁移失败必须抛异常让测试变红，而不是悄悄清数据蒙混过关。
  */
 @RunWith(AndroidJUnit4::class)
@@ -33,11 +38,6 @@ import org.robolectric.annotation.Config
 class MigrationTest {
 
     private lateinit var context: Context
-
-    private val helper = MigrationTestHelper(
-        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation(),
-        TodoDatabase::class.java
-    )
 
     @Before
     fun setUp() {
@@ -56,24 +56,49 @@ class MigrationTest {
             .addMigrations(*TodoDatabase.migrations())
             .build()
 
+    /**
+     * 按历史 DDL 手工创建指定版本的旧库并插入数据。
+     * 用 FrameworkSQLiteOpenHelper 直接建库，不经过 Room，因此不受当前实体定义影响。
+     */
+    private fun createOldDb(version: Int, schemaSql: String, inserts: List<String>) {
+        context.deleteDatabase(TEST_DB)
+        val config = SupportSQLiteOpenHelper.Configuration.builder(context)
+            .name(TEST_DB)
+            .callback(object : SupportSQLiteOpenHelper.Callback(version) {
+                override fun onCreate(db: SupportSQLiteDatabase) {
+                    db.execSQL(schemaSql)
+                    inserts.forEach { db.execSQL(it) }
+                }
+
+                override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {
+                    // 不会走到：建库版本即目标版本
+                }
+            })
+            .build()
+        val openHelper = FrameworkSQLiteOpenHelperFactory().create(config)
+        openHelper.writableDatabase // 触发 onCreate：建表 + 插数据
+        openHelper.close()
+    }
+
     /** v1 远古 schema：只有 4 列 */
     private fun createV1Db() {
-        helper.createDatabase(TEST_DB, 1).use { db ->
-            db.execSQL(
+        createOldDb(
+            version = 1,
+            schemaSql =
                 "CREATE TABLE IF NOT EXISTS `todos` (" +
                     "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                     "`title` TEXT NOT NULL, " +
                     "`done` INTEGER NOT NULL, " +
-                    "`createdAt` INTEGER NOT NULL)"
-            )
-            db.execSQL("INSERT INTO todos (title, done, createdAt) VALUES ('v1远古数据', 1, 1000)")
-        }
+                    "`createdAt` INTEGER NOT NULL)",
+            inserts = listOf("INSERT INTO todos (title, done, createdAt) VALUES ('v1远古数据', 1, 1000)")
+        )
     }
 
     /** v5 schema：无 deletedAt 列 */
     private fun createV5Db() {
-        helper.createDatabase(TEST_DB, 5).use { db ->
-            db.execSQL(
+        createOldDb(
+            version = 5,
+            schemaSql =
                 "CREATE TABLE IF NOT EXISTS `todos` (" +
                     "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                     "`title` TEXT NOT NULL, " +
@@ -83,16 +108,16 @@ class MigrationTest {
                     "`category` TEXT NOT NULL, " +
                     "`pinned` INTEGER NOT NULL DEFAULT 0, " +
                     "`repeat` TEXT NOT NULL DEFAULT 'NONE', " +
-                    "`note` TEXT NOT NULL DEFAULT '')"
-            )
-            db.execSQL("INSERT INTO todos (title, done, createdAt) VALUES ('v5时代数据', 0, 1000)")
-        }
+                    "`note` TEXT NOT NULL DEFAULT '')",
+            inserts = listOf("INSERT INTO todos (title, done, createdAt) VALUES ('v5时代数据', 0, 1000)")
+        )
     }
 
     /** v6 毒库 schema：deletedAt 列存在但【没有 DEFAULT NULL】——v1.21 事故库 */
     private fun createV6PoisonDb() {
-        helper.createDatabase(TEST_DB, 6).use { db ->
-            db.execSQL(
+        createOldDb(
+            version = 6,
+            schemaSql =
                 "CREATE TABLE IF NOT EXISTS `todos` (" +
                     "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                     "`title` TEXT NOT NULL, " +
@@ -103,11 +128,12 @@ class MigrationTest {
                     "`pinned` INTEGER NOT NULL DEFAULT 0, " +
                     "`repeat` TEXT NOT NULL DEFAULT 'NONE', " +
                     "`note` TEXT NOT NULL DEFAULT '', " +
-                    "`deletedAt` INTEGER)"
+                    "`deletedAt` INTEGER)",
+            inserts = listOf(
+                "INSERT INTO todos (title, done, createdAt) VALUES ('毒库老数据1', 0, 1000)",
+                "INSERT INTO todos (title, done, createdAt) VALUES ('毒库老数据2', 1, 2000)"
             )
-            db.execSQL("INSERT INTO todos (title, done, createdAt) VALUES ('毒库老数据1', 0, 1000)")
-            db.execSQL("INSERT INTO todos (title, done, createdAt) VALUES ('毒库老数据2', 1, 2000)")
-        }
+        )
     }
 
     @Test
