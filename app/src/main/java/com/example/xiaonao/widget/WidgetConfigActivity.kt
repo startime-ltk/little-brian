@@ -115,10 +115,10 @@ class WidgetConfigActivity : ComponentActivity() {
                                     AppWidgetManager.getInstance(this@WidgetConfigActivity),
                                     appWidgetId
                                 )
-                                val result = Intent().apply {
+                                val resultIntent = Intent().apply {
                                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                                 }
-                                setResult(RESULT_OK, result)
+                                setResult(RESULT_OK, resultIntent)
                                 finish()
                             }
                         ) { Text(stringResource(R.string.btn_done)) }

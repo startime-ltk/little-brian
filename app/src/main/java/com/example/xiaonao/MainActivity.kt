@@ -173,7 +173,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
     val todos by vm.todos.collectAsStateWithLifecycle()
     // 回收站内容（软删除的待办，可恢复/彻底删除）
     val trash by vm.trash.collectAsStateWithLifecycle()
-    // 搜索是否展开（默认折叠为小🔍图标，点击展开输入框）
+    // 搜索是否展开（默认折叠为搜索图标，点击展开输入框）
     var searchActive by remember { mutableStateOf(false) }
     // 添加待办弹窗开关（由右下角圆形＋按钮触发）
     var addOpen by remember { mutableStateOf(false) }
@@ -481,7 +481,7 @@ fun XiaoNaoApp(vm: TodoViewModel = viewModel()) {
                 Spacer(Modifier.height(12.dp))
 
                 if (tab == 0) {
-                // 搜索：默认折叠为小🔍图标，点击展开输入框（位于分段 Tab 下方）
+                // 搜索：默认折叠为搜索图标，点击展开输入框（位于分段 Tab 下方）
                 Row(Modifier.fillMaxWidth()) {
                     if (searchActive) {
                         OutlinedTextField(
@@ -1056,7 +1056,7 @@ fun TodoRow(
             .fillMaxWidth()
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .pointerInput(Unit) {
-                // 长按置顶；单击不再进编辑（避免浏览时误触弹编辑框），编辑走行尾 ✏️ 或长按
+                // 长按置顶；单击不再进编辑（避免浏览时误触弹编辑框），编辑走行尾的编辑按钮或长按
                 detectTapGestures(onLongPress = { onTogglePin() })
             },
         shape = RoundedCornerShape(16.dp),
@@ -1085,7 +1085,7 @@ fun TodoRow(
                 )
             }
 
-            // 标题（置顶项加 📌）+ 其下方的备注小字
+            // 标题（置顶项加置顶标记）+ 其下方的备注小字
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                 Text(
                     (if (todo.pinned) "📌 " else "") + todo.title,
