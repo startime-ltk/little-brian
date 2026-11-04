@@ -129,12 +129,12 @@ object AppUpdater {
                 conn.instanceFollowRedirects = true
                 val text = conn.inputStream.bufferedReader().use { it.readText() }
                 conn.disconnect()
-                val obj = JSONObject(text)
+                val root = JSONObject(text)
                 return@withContext UpdateInfo(
-                    versionCode = obj.getInt("versionCode"),
-                    versionName = obj.getString("versionName"),
-                    apkUrl = obj.getString("apkUrl"),
-                    note = obj.optString("note", "")
+                    versionCode = root.getInt("versionCode"),
+                    versionName = root.getString("versionName"),
+                    apkUrl = root.getString("apkUrl"),
+                    note = root.optString("note", "")
                 )
             } catch (e: Exception) {
                 lastError = e

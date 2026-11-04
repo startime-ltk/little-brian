@@ -57,7 +57,7 @@ class TodoWidgetFactory(
     override fun getViewAt(position: Int): RemoteViews {
         val todo = items[position]
         val rv = RemoteViews(context.packageName, R.layout.widget_list_item)
-        // 周期性待办加个 🔁 前缀，桌面上也能一眼看出是每天/每周要做的事
+        // 周期性待办加个周期标记前缀，桌面上也能一眼看出是每天/每周要做的事
         val rule = com.example.xiaonao.data.RepeatRule.from(todo.repeat)
         val titleText =
             if (rule == com.example.xiaonao.data.RepeatRule.NONE) todo.title
